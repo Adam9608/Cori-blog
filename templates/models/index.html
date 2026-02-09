@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Model Arena | Cori's Space</title>
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/dmego-home-page@latest/assets/css/iconfont.css"/>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        min-height: 100vh;
+        color: #111111;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        position: relative;
+        overflow-x: hidden;
+        
+        /* ROBUST GRADIENT BACKGROUND */
+        background-color: #ffffff;
+        background-image: 
+            radial-gradient(at 0% 0%, rgba(224, 242, 254, 0.8) 0px, transparent 50%),
+            radial-gradient(at 100% 100%, rgba(243, 232, 255, 0.8) 0px, transparent 50%),
+            radial-gradient(at 100% 0%, rgba(224, 242, 254, 0.5) 0px, transparent 50%);
+        background-attachment: fixed;
+      }
+
+      /* Shooting Stars (Shared Style) */
+      .night {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+        pointer-events: none;
+        overflow: hidden;
+      }
+      .shooting_star {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 2px;
+        width: 180px;
+        background: linear-gradient(90deg, transparent, #6366f1);
+        border-radius: 999px;
+        opacity: 0;
+        transform: rotate(45deg) translateX(0);
+        animation: meteor 6s linear infinite;
+      }
+      @keyframes meteor {
+        0% { opacity: 0; transform: rotate(45deg) translateX(-200px); }
+        10% { opacity: 1; }
+        80% { opacity: 1; }
+        100% { opacity: 0; transform: rotate(45deg) translateX(150vw); }
+      }
+      .shooting_star:nth-child(1) { top: -100px; left: 10%; animation-delay: 0s; }
+      .shooting_star:nth-child(2) { top: -100px; left: 40%; animation-delay: 2s; }
+      .shooting_star:nth-child(3) { top: -100px; left: 70%; animation-delay: 4s; }
+      .shooting_star:nth-child(4) { top: 20%; left: -200px; animation-delay: 1.5s; }
+      .shooting_star:nth-child(5) { top: 50%; left: -200px; animation-delay: 3.5s; }
+      .shooting_star:nth-child(6) { top: -100px; left: 90%; animation-delay: 5s; }
+
+      /* Unified Navigation (Matches Homepage) */
+      .nav-container {
+        padding: 20px 40px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(255,255,255,0.9);
+        backdrop-filter: blur(10px);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        text-decoration: none;
+        color: #111;
+        font-weight: 700;
+        font-size: 18px;
+      }
+      .brand-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: 1px solid #eee;
+      }
+      .nav {
+        display: inline-flex;
+        gap: 10px;
+      }
+      .nav-btn {
+        display: inline-block;
+        padding: 8px 20px;
+        background: transparent;
+        color: #666;
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 500;
+        border: 1px solid transparent;
+        border-radius: 50px;
+        transition: all 0.2s ease;
+      }
+      .nav-btn:hover {
+        background: #f5f5f5;
+        color: #111;
+      }
+      .nav-btn.active {
+        background: #111;
+        color: #fff;
+        border-color: #111;
+        cursor: default;
+      }
+      .nav-btn.active:hover {
+        background: #111;
+        transform: none;
+      }
+      
+      @media (max-width: 640px) {
+        .nav-container { flex-direction: column; gap: 15px; padding: 20px; }
+      }
+
+      /* Header */
+      .header {
+        text-align: center;
+        margin: 40px 0 60px;
+        padding: 0 20px;
+      }
+      .header h1 {
+        font-size: 42px;
+        font-weight: 800;
+        letter-spacing: -1px;
+        margin: 0 0 10px 0;
+      }
+      .header p {
+        color: #666;
+        font-size: 16px;
+        max-width: 600px;
+        margin: 0 auto;
+        line-height: 1.6;
+      }
+
+      /* Bento Grid Layout */
+      .container {
+        max-width: 1000px;
+        margin: 0 auto 80px;
+        padding: 0 20px;
+        width: 100%;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 24px;
+      }
+
+      /* Cards */
+      .card {
+        background: #fff;
+        border: 1px solid #eee;
+        border-radius: 20px;
+        padding: 30px;
+        position: relative;
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+      .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+        border-color: transparent;
+      }
+
+      /* Status Indicator */
+      .status {
+        position: absolute;
+        top: 24px;
+        right: 24px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #10b981;
+        background: rgba(16, 185, 129, 0.1);
+        padding: 4px 10px;
+        border-radius: 20px;
+      }
+      .status::before {
+        content: '';
+        display: block;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+
+      /* Card Content */
+      .provider-logo {
+        width: 40px;
+        height: 40px;
+        background: #f5f5f5;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: #666;
+        font-size: 18px;
+      }
+      .card h2 {
+        font-size: 24px;
+        font-weight: 700;
+        margin: 0 0 10px 0;
+        letter-spacing: -0.5px;
+      }
+      .card p {
+        font-size: 14px;
+        color: #666;
+        line-height: 1.6;
+        margin: 0 0 24px 0;
+        flex-grow: 1;
+      }
+
+      /* Tags */
+      .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .tag {
+        font-size: 12px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        background: #f9f9f9;
+        border: 1px solid #eee;
+        color: #555;
+        padding: 6px 12px;
+        border-radius: 6px;
+      }
+      
+      /* Dark Mode Support (Basic) */
+      @media (prefers-color-scheme: dark) {
+        /* Future implementation */
+      }
+    </style>
+</head>
+<body>
+    <div class="night">
+        <div class="shooting_star"></div>
+        <div class="shooting_star"></div>
+        <div class="shooting_star"></div>
+        <div class="shooting_star"></div>
+        <div class="shooting_star"></div>
+        <div class="shooting_star"></div>
+    </div>
+    <div class="nav-container">
+        <a href="/" class="brand">
+            <img src="/assets/img/avatar.jpg" class="brand-avatar" alt="Cori">
+            <span>Cori 的空间</span>
+        </a>
+        <div class="nav">
+            <a href="/" class="nav-btn">首页</a>
+            <a href="/blog" class="nav-btn">博客</a>
+            <a href="/book/" class="nav-btn">书库</a>
+            <!-- Active state style for Models -->
+            <a href="/models/" class="nav-btn active">模型</a>
+            <a href="/reading/" class="nav-btn">阅读</a>
+        </div>
+    </div>
+
+    <header class="header">
+        <h1>Model Arena</h1>
+        <p>探索智能边界。追踪全球顶尖大模型的核心参数与实时状态。</p>
+    </header>
+
+    <div class="container">
+        <div class="grid" id="modelGrid">
+            <!-- Content rendered by JS -->
+        </div>
+    </div>
+
+    <script>
+        const models = [
+            {
+                name: "GPT-4o",
+                provider: "OpenAI",
+                desc: "OpenAI 最强多模态模型。在复杂逻辑推理、创意写作及多语言处理上表现卓越。",
+                status: "Active",
+                logo: "O",
+                tags: ["Logic", "Multimodal", "Vision"]
+            },
+            {
+                name: "Claude 3.5 Sonnet",
+                provider: "Anthropic",
+                desc: "代码编写与长文本理解的王者。拥有极高的指令遵循能力和拟人化语气。",
+                status: "Active",
+                logo: "A",
+                tags: ["Coding", "Writing", "Nuance"]
+            },
+            {
+                name: "Gemini 1.5 Pro",
+                provider: "Google",
+                desc: "原生多模态，支持 2M 超长上下文。擅长分析整本书籍、代码库及长视频。",
+                status: "Active",
+                logo: "G",
+                tags: ["2M Context", "Video", "Research"]
+            },
+            {
+                name: "DeepSeek V3",
+                provider: "DeepSeek",
+                desc: "开源界的里程碑。在中文语境及数学编程任务上，展现出媲美闭源模型的实力。",
+                status: "Active",
+                logo: "D",
+                tags: ["Open Weights", "Math", "Chinese"]
+            },
+            {
+                name: "O1 (Preview)",
+                provider: "OpenAI",
+                desc: "强化学习驱动的推理模型。擅长通过慢思考解决复杂的科学与数学难题。",
+                status: "Beta",
+                logo: "O",
+                tags: ["Reasoning", "STEM", "Hard Logic"]
+            }
+        ];
+
+        function render() {
+            const grid = document.getElementById('modelGrid');
+            grid.innerHTML = models.map(m => `
+                <div class="card">
+                    <div class="status">${m.status}</div>
+                    <div class="provider-logo">${m.logo}</div>
+                    <h2>${m.name}</h2>
+                    <p>${m.desc}</p>
+                    <div class="tags">
+                        ${m.tags.map(t => `<span class="tag">${t}</span>`).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        window.onload = render;
+    </script>
+</body>
+</html>

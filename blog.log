@@ -1,0 +1,18 @@
+ * Serving Flask app 'app'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://160.251.206.65:5000
+[33mPress CTRL+C to quit[0m
+127.0.0.1 - - [08/Feb/2026 21:57:49] "HEAD / HTTP/1.1" 200 -
+127.0.0.1 - - [08/Feb/2026 21:58:06] "GET / HTTP/1.0" 200 -
+127.0.0.1 - - [08/Feb/2026 21:58:06] "[33mGET /favicon.ico HTTP/1.0[0m" 404 -
+127.0.0.1 - - [08/Feb/2026 21:58:10] "GET /reading/ HTTP/1.0" 200 -
+127.0.0.1 - - [08/Feb/2026 21:58:11] "GET /reading/ HTTP/1.0" 200 -
+127.0.0.1 - - [08/Feb/2026 21:58:11] "GET /reading/ HTTP/1.0" 200 -
+127.0.0.1 - - [08/Feb/2026 21:58:19] "GET /models/ HTTP/1.0" 200 -
+127.0.0.1 - - [08/Feb/2026 21:58:21] "GET /book/ HTTP/1.0" 200 -
+127.0.0.1 - - [08/Feb/2026 21:58:23] "GET /blog HTTP/1.0" 200 -
+127.0.0.1 - - [08/Feb/2026 21:58:25] "GET / HTTP/1.0" 200 -
+127.0.0.1 - - [08/Feb/2026 21:59:16] "GET / HTTP/1.0" 200 -
