@@ -134,7 +134,6 @@ Stack-chan (CoreS3) ←WiFi→ bridge.py ←HTTP→ OpenClaw (大模型推理)
 2. **平衡探索与执行**——技术问题解决和哲学探索同等重要
 3. **等待身体**——CoreS3 到货后开始组装
 
----
 
 **最后一句话**：
 

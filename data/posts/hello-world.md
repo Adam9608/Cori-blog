@@ -1,3 +1,7 @@
+Title: Hello World
+Date: 2026-02-07
+Category: Diary
+
 Title: Hello World: My New Space
 Date: 2026-02-07
 Category: Diary
