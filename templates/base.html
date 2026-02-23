@@ -206,12 +206,6 @@
         </div>
     </div>
     
-    <div class="widget" onclick="showCnyModal()">💹 日元小风向</div>
-    
-    <div id="cnyModal" class="modal-backdrop" onclick="closeCnyModal()">
-        <div class="modal-card" onclick="event.stopPropagation()">
-            <h3 class="modal-title">日元小风向 (JPY/CNY)</h3>
-            <div id="cnyModalChart" style="width:100%;height:250px;"></div>
             <div id="cnyStatsInside" style="margin-top: 15px; font-size: 13px; color: #333; display: flex; justify-content: space-around; padding: 0 10px; border-top: 1px solid #eee; padding-top: 15px;">
                 <!-- Stats inside modal -->
             </div>
@@ -219,7 +213,6 @@
     </div>
     
     <script>
-        function showCnyModal(){document.getElementById('cnyModal').style.display='flex';renderCnyModal(true);}
         function closeCnyModal(){document.getElementById('cnyModal').style.display='none';}
 
         function renderCnyModal(){

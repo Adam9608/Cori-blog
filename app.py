@@ -353,16 +353,21 @@ def book_list():
     for f in os.listdir(BOOKS_DIR):
         if f.lower().endswith(('.pdf', '.epub', '.mobi')):
             path = os.path.join(BOOKS_DIR, f)
-            size_mb = os.path.getsize(path) / (1024 * 1024)
+            import time
+            mtime = os.path.getmtime(path)
+            date = time.strftime("%Y-%m-%d", time.localtime(mtime))
             title = f.rsplit('.', 1)[0].replace('_', ' ').replace('-', ' ')
             ext = f.split('.')[-1].upper()
-            books.append({"filename": f, "title": title, "size": f"{size_mb:.1f} MB", "ext": ext})
+            books.append({"filename": f, "title": title, "date": date, "ext": ext})
     books.sort(key=lambda x: x['title'])
     return render_template('bookshelf.html', books=books)
 
 @app.route('/book/<path:filename>')
-def serve_book(filename): 
-    return send_from_directory(BOOKS_DIR, filename)
+def serve_book(filename):
+    from flask import make_response
+    response = make_response(send_from_directory(BOOKS_DIR, filename, as_attachment=False))
+    response.headers["Content-Disposition"] = f"inline; filename={filename}"
+    return response 
 
 # Models
 @app.route('/models/')
@@ -373,7 +378,7 @@ def models_index():
 @app.route('/reading/')
 def reading_index():
     try:
-        with open('/var/www/cori-home/data/ai_news.json', 'r', encoding='utf-8') as f:
+        with open('/var/www/Home/data/ai_news.json', 'r', encoding='utf-8') as f:
             data = json.load(f)
             entries = data.get('entries', [])
     except Exception as e:
@@ -382,5 +387,12 @@ def reading_index():
     
     return render_template('reading.html', entries=entries)
 
+@app.route('/read/<path:filename>')
+def pdf_viewer(filename):
+    import urllib.parse
+    url = urllib.parse.quote(f"https://openclaw.cori.tokyo/book/{filename}")
+    return render_template('pdf_viewer.html', filename=filename, url=url)
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+
