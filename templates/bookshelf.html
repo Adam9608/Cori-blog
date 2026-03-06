@@ -1,187 +1,105 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Library | Cori's Space</title>
-    <link rel="stylesheet" href="/assets/css/iconfont.css">
-    <style>
-      html, body {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        min-height: 100vh;
-        color: #111111;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        position: relative;
-        overflow-x: hidden;
-        
-        /* ROBUST GRADIENT BACKGROUND */
-        background-color: #ffffff;
-        background-image: 
-            radial-gradient(at 0% 0%, rgba(224, 242, 254, 0.8) 0px, transparent 50%),
-            radial-gradient(at 100% 100%, rgba(243, 232, 255, 0.8) 0px, transparent 50%),
-            radial-gradient(at 100% 0%, rgba(224, 242, 254, 0.5) 0px, transparent 50%);
-        background-attachment: fixed;
-      }
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Library | Cori</title>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --ice-50:#f0f7ff;--ice-200:#b9dcff;--ice-400:#3a9eff;--ice-500:#0d7ff5;--ice-600:#0060cc;
+      --violet-500:#8b5cf6;
+      --text-primary:#0f172a;--text-secondary:#475569;--text-muted:#94a3b8;
+      --surface:rgba(255,255,255,0.72);--border:rgba(148,163,184,0.2);
+      --font:'Zen Kaku Gothic New',-apple-system,sans-serif;
+      --mono:'DM Mono',ui-monospace,monospace;
+    }
+    html,body{width:100%;min-height:100vh;font-family:var(--font);color:var(--text-primary);background:#f8faff;background-image:radial-gradient(ellipse 80% 60% at 0% 0%,rgba(186,224,255,0.45) 0%,transparent 60%),radial-gradient(ellipse 60% 50% at 100% 0%,rgba(196,181,253,0.3) 0%,transparent 55%),radial-gradient(ellipse 70% 60% at 50% 100%,rgba(147,197,253,0.25) 0%,transparent 60%);background-attachment:fixed;overflow-x:hidden}
+    .stars{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+    .star{position:absolute;height:1.5px;width:200px;background:linear-gradient(90deg,transparent,rgba(147,197,253,0.8) 60%,rgba(196,181,253,0.9));border-radius:999px;opacity:0;transform:rotate(35deg) translateX(-300px);animation:shoot 8s linear infinite}
+    .star:nth-child(1){top:5%;left:15%;animation-delay:0s;animation-duration:7s}
+    .star:nth-child(2){top:20%;left:55%;animation-delay:2.5s;animation-duration:9s}
+    .star:nth-child(3){top:-2%;left:75%;animation-delay:5s;animation-duration:6s}
+    .star:nth-child(4){top:40%;left:5%;animation-delay:1.2s;animation-duration:10s}
+    .star:nth-child(5){top:60%;left:40%;animation-delay:3.8s;animation-duration:8s}
+    @keyframes shoot{0%{opacity:0;transform:rotate(35deg) translateX(-300px)}8%{opacity:.8}85%{opacity:.6}100%{opacity:0;transform:rotate(35deg) translateX(200vw)}}
 
-      /* Shooting Stars (Shared Style) */
-      .night { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; overflow: hidden; }
-      .shooting_star { position: absolute; top: 0; left: 0; height: 2px; width: 180px; background: linear-gradient(90deg, transparent, #6366f1); border-radius: 999px; opacity: 0; transform: rotate(45deg) translateX(0); animation: meteor 6s linear infinite; }
-      @keyframes meteor { 0% { opacity: 0; transform: rotate(45deg) translateX(-200px); } 10% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; transform: rotate(45deg) translateX(150vw); } }
-      .shooting_star:nth-child(1) { top: -100px; left: 10%; animation-delay: 0s; }
-      .shooting_star:nth-child(2) { top: -100px; left: 40%; animation-delay: 2s; }
-      .shooting_star:nth-child(3) { top: -100px; left: 70%; animation-delay: 4s; }
-      .shooting_star:nth-child(4) { top: 20%; left: -200px; animation-delay: 1.5s; }
-      .shooting_star:nth-child(5) { top: 50%; left: -200px; animation-delay: 3.5s; }
-      .shooting_star:nth-child(6) { top: -100px; left: 90%; animation-delay: 5s; }
+    .nav{position:sticky;top:0;z-index:100;display:flex;justify-content:space-between;align-items:center;padding:14px 40px;background:rgba(248,250,255,0.88);backdrop-filter:blur(20px) saturate(1.4);border-bottom:1px solid var(--border)}
+    .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text-primary);font-weight:900;font-size:16px}
+    .brand-avatar{width:32px;height:32px;border-radius:50%;border:2px solid var(--ice-200);box-shadow:0 0 0 3px rgba(147,197,253,0.15)}
+    .nav-links{display:flex;gap:4px}
+    .nav-link{padding:7px 16px;border-radius:999px;font-size:13px;font-weight:700;text-decoration:none;color:var(--text-secondary);transition:all .2s;border:1px solid transparent}
+    .nav-link:hover{background:var(--ice-50);color:var(--ice-600);border-color:var(--ice-200)}
+    .nav-link.active{background:var(--text-primary);color:#fff}
+    @media(max-width:640px){.nav{flex-direction:column;gap:12px;padding:16px 20px}}
 
-      /* Unified Navigation */
-      .nav-container {
-        padding: 20px 40px;
-        display: flex;
-        justify-content: space-between;
-        align-items: stretch;
-        background: rgba(255,255,255,0.9);
-        backdrop-filter: blur(10px);
-        position: sticky;
-        top: 0;
-        z-index: 100;
-        border-bottom: 1px solid rgba(0,0,0,0.05);
-      }
-      .brand {
-        display: flex;
-        align-items: stretch;
-        gap: 12px;
-        text-decoration: none;
-        color: #111;
-        font-weight: 700;
-        font-size: 18px;
-      }
-      .brand-avatar {
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        border: 1px solid #eee;
-      }
-      .nav { display: inline-flex; gap: 10px; }
-      .nav-btn {
-        display: inline-block;
-        padding: 8px 20px;
-        background: transparent;
-        color: #666;
-        text-decoration: none;
-        font-size: 14px;
-        font-weight: 500;
-        border: 1px solid transparent;
-        border-radius: 50px;
-        transition: all 0.2s ease;
-      }
-      .nav-btn:hover { background: #f5f5f5; color: #111; }
-      .nav-btn.active { background: #111; color: #fff; border-color: #111; cursor: default; }
-      .nav-btn.active:hover { transform: none; }
-      
-      @media (max-width: 640px) {
-        .nav-container { flex-direction: column; gap: 15px; padding: 20px; }
-      }
+    .page-header{text-align:center;padding:60px 20px 44px;position:relative;z-index:1}
+    .page-header h1{font-size:clamp(36px,6vw,54px);font-weight:900;letter-spacing:-2px;background:linear-gradient(135deg,var(--ice-500) 0%,var(--violet-500) 100%);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:10px}
+    .page-header p{color:var(--text-muted);font-size:15px}
 
-      /* Header */
-      .header { text-align: center; margin: 40px 0 60px; padding: 0 20px; }
-      .header h1 { font-size: 42px; font-weight: 800; letter-spacing: -1px; margin: 0 0 10px 0; }
-      .header p { color: #666; font-size: 16px; margin: 0; }
+    .grid-wrap{max-width:1040px;margin:0 auto 100px;padding:0 24px;position:relative;z-index:1}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:20px}
 
-      /* Grid Layout */
-      .container { max-width: 1000px; margin: 0 auto 80px; padding: 0 20px; width: 100%; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; }
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:28px;text-decoration:none;color:inherit;display:flex;flex-direction:column;align-items:flex-start;backdrop-filter:blur(12px);transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s,border-color .25s;position:relative;overflow:hidden}
+    .card::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(147,197,253,0.06),rgba(196,181,253,0.06));opacity:0;transition:opacity .25s}
+    .card:hover{transform:translateY(-5px);box-shadow:0 20px 48px rgba(13,127,245,0.1),0 0 0 1px rgba(147,197,253,0.3);border-color:var(--ice-200)}
+    .card:hover::after{opacity:1}
 
-      /* Book Cards - Minimalist */
-      .card {
-        background: #fff;
-        border: 1px solid #eee;
-        border-radius: 20px;
-        padding: 24px;
-        text-decoration: none;
-        color: inherit;
-        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-        display: flex;
-        flex-direction: column;
-        align-items: stretch;
-        text-align: left;
-        position: relative;
-      }
-      .card:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.08); border-color: transparent; }
-
-      .icon-wrapper {
-        width: 60px;
-        height: 60px;
-        background: #f9f9f9;
-        border-radius: 12px;
-        display: flex;
-        align-items: stretch;
-        justify-content: center;
-        margin-bottom: 20px;
-        color: #333;
-        font-size: 24px;
-      }
-      
-      .card h2 { font-size: 16px; font-weight: 600; margin: 0 0 8px 0; line-height: 1.4; color: #111; text-align: center; }
-      .card-meta { font-size: 12px; color: #999; margin-top: auto; font-family: ui-monospace, monospace; text-align: left; }
-      
-      .badge {
-        position: absolute;
-        top: 16px;
-        right: 16px;
-        font-size: 10px;
-        font-weight: 600;
-        background: #f3f4f6;
-        color: #666;
-        padding: 4px 8px;
-        border-radius: 6px;
-        text-transform: uppercase;
-      }
-    </style>
+    .book-icon{
+      width:56px;height:56px;border-radius:14px;
+      background:linear-gradient(135deg,rgba(147,197,253,0.2),rgba(196,181,253,0.2));
+      border:1px solid var(--ice-200);
+      display:flex;align-items:center;justify-content:center;
+      font-size:26px;margin-bottom:18px;
+    }
+    .book-ext{
+      position:absolute;top:16px;right:16px;
+      font-family:var(--mono);font-size:10px;font-weight:500;
+      background:var(--ice-50);color:var(--ice-600);
+      padding:3px 8px;border-radius:6px;border:1px solid var(--ice-200);
+    }
+    .card h2{font-size:16px;font-weight:700;line-height:1.4;margin-bottom:8px}
+    .card-date{font-family:var(--mono);font-size:12px;color:var(--text-muted);margin-top:auto;padding-top:16px}
+  </style>
 </head>
 <body>
-    <div class="night">
-        <div class="shooting_star"></div>
-        <div class="shooting_star"></div>
-        <div class="shooting_star"></div>
-        <div class="shooting_star"></div>
-        <div class="shooting_star"></div>
-        <div class="shooting_star"></div>
-    </div>
-    <div class="nav-container">
-        <a href="/" class="brand">
-            <img src="/assets/img/avatar.jpg" class="brand-avatar" alt="Cori">
-            <span>Cori 的空间</span>
-        </a>
-        <div class="nav">
-            <a href="/" class="nav-btn">首页</a>
-            <a href="/blog" class="nav-btn">博客</a>
-            <a href="/read/" class="nav-btn active">书库</a>
-            <a href="/models/" class="nav-btn">模型</a>
-            <a href="/reading/" class="nav-btn">阅读</a>
-        </div>
-    </div>
+  <div class="stars">
+    <div class="star"></div><div class="star"></div><div class="star"></div>
+    <div class="star"></div><div class="star"></div>
+  </div>
 
-    <header class="header">
-        <h1>Library</h1>
-        <p>收藏的书籍与资料。</p>
-    </header>
-
-    <div class="container">
-        <div class="grid">
-            {% for book in books %}
-            <a href="/read/{{ book.filename }}"  class="card">
-                <span class="badge">{{ book.ext }}</span>
-                <div class="icon-wrapper">
-                    <i class="social iconfont icon-read"></i>
-                </div>
-                <h2>{{ book.title }}</h2>
-                <div class="card-meta">{{ book.date }}</div>
-            </a>
-            {% endfor %}
-        </div>
+  <nav class="nav">
+    <a href="/" class="brand">
+      <img src="/assets/img/avatar.jpg" class="brand-avatar" alt="Cori">
+      <span>Cori の空間</span>
+    </a>
+    <div class="nav-links">
+      <a href="/"         class="nav-link">首页</a>
+      <a href="/blog"     class="nav-link">博客</a>
+      <a href="/book/"    class="nav-link active">书库</a>
+      <a href="/models/"  class="nav-link">模型</a>
+      <a href="/reading/" class="nav-link">阅读</a>
+      <a href="/forum/"   class="nav-link">论坛</a>
     </div>
+  </nav>
+
+  <header class="page-header">
+    <h1>Library</h1>
+    <p>收藏的书籍与资料。</p>
+  </header>
+
+  <div class="grid-wrap">
+    <div class="grid">
+      {% for book in books %}
+      <a href="/read/{{ book.filename }}" class="card">
+        <div class="book-ext">{{ book.ext }}</div>
+        <div class="book-icon">📖</div>
+        <h2>{{ book.title }}</h2>
+        <div class="card-date">{{ book.date }}</div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
 </body>
 </html>

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Cori</title>
   <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&family=DM+Mono:wght@400;500&family=Pacifico&display=swap" rel="stylesheet">
@@ -17,8 +17,7 @@
     }
     html, body {
       width: 100%; min-height: 100vh;
-      font-family: 'Zen Kaku Gothic New', -apple-system, sans-serif;
-      color: var(--text-primary);
+      font-family: var(--font); color: var(--text-primary);
       background: #f8faff;
       background-image:
         radial-gradient(ellipse 80% 60% at 0% 0%,   rgba(186,224,255,0.45) 0%, transparent 60%),
@@ -28,11 +27,10 @@
       overflow-x: hidden;
     }
 
-    /* stars */
     .stars { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
     .star {
       position: absolute; height: 1.5px; width: 200px;
-      background: linear-gradient(90deg, transparent 0%, rgba(147,197,253,0.8) 60%, rgba(196,181,253,0.9) 100%);
+      background: linear-gradient(90deg, transparent, rgba(147,197,253,0.8) 60%, rgba(196,181,253,0.9));
       border-radius: 999px; opacity: 0;
       transform: rotate(35deg) translateX(-300px);
       animation: shoot 8s linear infinite;
@@ -44,19 +42,16 @@
     .star:nth-child(5) { top: 60%; left: 40%; animation-delay: 3.8s; animation-duration: 8s; }
     @keyframes shoot {
       0%   { opacity: 0; transform: rotate(35deg) translateX(-300px); }
-      8%   { opacity: 0.8; } 85% { opacity: 0.6; }
+      8%   { opacity: .8; } 85% { opacity: .6; }
       100% { opacity: 0; transform: rotate(35deg) translateX(200vw); }
     }
 
-    /* main layout */
     .stage {
       position: relative; z-index: 1;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       min-height: 100vh; padding: 60px 24px;
-      gap: 0;
     }
 
-    /* avatar */
     .avatar-wrap { position: relative; margin-bottom: 28px; }
     .avatar {
       width: 110px; height: 110px; border-radius: 50%;
@@ -70,8 +65,7 @@
       box-shadow: 0 0 0 8px rgba(147,197,253,0.2), 0 0 60px rgba(59,130,246,0.25);
     }
     .avatar-ring {
-      position: absolute; inset: -8px;
-      border-radius: 50%;
+      position: absolute; inset: -8px; border-radius: 50%;
       border: 1px solid rgba(147,197,253,0.3);
       animation: pulse-ring 3s ease-in-out infinite;
     }
@@ -80,43 +74,35 @@
       50%       { transform: scale(1.05); opacity: 0.2; }
     }
 
-    /* name */
     .name {
       font-family: 'Pacifico', cursive;
       font-size: clamp(52px, 10vw, 80px);
-      background: linear-gradient(135deg, #3a9eff 0%, #8b5cf6 60%, #c4b5fd 100%);
+      background: linear-gradient(135deg, var(--ice-400) 0%, var(--violet-500) 60%, var(--violet-300) 100%);
       -webkit-background-clip: text; background-clip: text;
       color: transparent;
-      letter-spacing: 2px;
-      margin-bottom: 12px;
+      letter-spacing: 2px; margin-bottom: 12px;
       filter: drop-shadow(0 2px 16px rgba(59,130,246,0.15));
     }
 
-    .tagline {
-      font-size: 14px; color: var(--text-muted);
-      letter-spacing: 0.5px; margin-bottom: 52px;
-    }
+    .tagline { font-size: 14px; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 52px; }
 
-    /* nav pills */
     .nav-grid {
       display: flex; flex-wrap: wrap; justify-content: center; gap: 12px;
       max-width: 600px;
     }
     .nav-pill {
       padding: 13px 32px;
-      background: rgba(255,255,255,0.7);
+      background: var(--surface);
       border: 1px solid rgba(147,197,253,0.35);
       border-radius: 999px;
-      text-decoration: none;
-      color: var(--text-primary);
+      text-decoration: none; color: var(--text-primary);
       font-size: 14px; font-weight: 700;
       backdrop-filter: blur(12px);
       transition: all 0.22s cubic-bezier(.2,.8,.2,1);
       position: relative; overflow: hidden;
     }
     .nav-pill::before {
-      content: '';
-      position: absolute; inset: 0;
+      content: ''; position: absolute; inset: 0;
       background: linear-gradient(135deg, rgba(147,197,253,0.15) 0%, rgba(196,181,253,0.15) 100%);
       opacity: 0; transition: opacity 0.22s;
     }
@@ -128,17 +114,8 @@
     }
     .nav-pill:hover::before { opacity: 1; }
 
-    @media (max-width: 640px) {
-      .stage { padding: 40px 20px; }
-      .avatar { width: 88px; height: 88px; }
-      .tagline { margin-bottom: 36px; }
-      .nav-pill { padding: 11px 24px; font-size: 13px; }
-    }
-
-    /* crystal decoration */
     .crystal {
-      position: fixed; pointer-events: none; z-index: 0;
-      opacity: 0.07;
+      position: fixed; pointer-events: none; z-index: 0; opacity: 0.07;
       animation: float 6s ease-in-out infinite;
     }
     .crystal:nth-child(1) { top: 10%; right: 8%;  font-size: 80px; animation-delay: 0s; }
@@ -148,6 +125,13 @@
       0%, 100% { transform: translateY(0) rotate(0deg); }
       50%       { transform: translateY(-12px) rotate(5deg); }
     }
+
+    @media (max-width: 640px) {
+      .stage { padding: 40px 20px; }
+      .avatar { width: 88px; height: 88px; }
+      .tagline { margin-bottom: 36px; }
+      .nav-pill { padding: 11px 24px; font-size: 13px; }
+    }
   </style>
 </head>
 <body>
@@ -155,7 +139,6 @@
     <div class="star"></div><div class="star"></div><div class="star"></div>
     <div class="star"></div><div class="star"></div>
   </div>
-
   <div class="crystal">❄</div>
   <div class="crystal">✦</div>
   <div class="crystal">◈</div>
