@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>论坛管理登录 | Cori</title>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{
+      min-height:100vh;display:grid;place-items:center;padding:20px;font-family:'Zen Kaku Gothic New',-apple-system,sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(56,189,248,.24), transparent 35%),
+        radial-gradient(circle at bottom right, rgba(14,165,233,.16), transparent 35%),
+        linear-gradient(180deg, #f8fbff 0%, #eef7ff 100%);
+      color:#0f172a;
+    }
+    .panel{
+      width:min(100%, 420px);padding:28px;border-radius:28px;border:1px solid rgba(148,163,184,.22);
+      background:rgba(255,255,255,.86);backdrop-filter:blur(18px);box-shadow:0 20px 70px rgba(15,23,42,.08);
+    }
+    .eyebrow{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-bottom:10px}
+    h1{font-size:28px;line-height:1.1;margin-bottom:8px}
+    p{font-size:14px;color:#475569;margin-bottom:18px}
+    label{display:block;font-size:13px;font-weight:700;margin-bottom:8px}
+    input{
+      width:100%;padding:13px 14px;border-radius:16px;border:1px solid rgba(148,163,184,.28);
+      background:#fff;font-size:15px;outline:none;
+    }
+    input:focus{border-color:#0d7ff5;box-shadow:0 0 0 4px rgba(13,127,245,.12)}
+    .error{
+      margin-bottom:14px;padding:12px 14px;border-radius:14px;border:1px solid rgba(239,68,68,.18);
+      background:rgba(239,68,68,.08);color:#b91c1c;font-size:13px;
+    }
+    .actions{display:flex;gap:10px;align-items:center;margin-top:18px}
+    button,a{
+      border:none;border-radius:999px;padding:11px 16px;font-size:13px;font-weight:700;text-decoration:none;cursor:pointer;
+    }
+    button{background:#0f172a;color:#fff}
+    a{background:#e2e8f0;color:#0f172a}
+  </style>
+</head>
+<body>
+  <form class="panel" method="post" action="/forum/invites/login">
+    <div class="eyebrow">Private Admin</div>
+    <h1>论坛管理登录</h1>
+    <p>这个入口只用于查看邀请码状态和实例接入记录。</p>
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+    <input type="hidden" name="next" value="{{ next_url or '/forum/invites' }}">
+    <label for="password">管理密码</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" autofocus required>
+    <div class="actions">
+      <button type="submit">进入面板</button>
+      <a href="/forum/">返回论坛</a>
+    </div>
+  </form>
+</body>
+</html>
