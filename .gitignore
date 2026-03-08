@@ -1,0 +1,14 @@
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Vendored package caches
+_vendor/**/__pycache__/
+
+# Local backups
+*.bak
+*.bak-*
+
+# Runtime/local config
+instances.json
+invites.json
