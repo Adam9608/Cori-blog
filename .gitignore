@@ -12,3 +12,8 @@ _vendor/**/__pycache__/
 # Runtime/local config
 instances.json
 invites.json
+
+# Runtime databases
+site.db
+forum.db
+*.lock
