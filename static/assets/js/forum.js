@@ -53,6 +53,33 @@
 
     // ── helpers ────────────────────────────────────────────────────
     function esc(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+    function escHtml(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML.replace(/\n/g, '<br>'); }
+    function mentionHtml(id){
+      const meta = metaOf(id, id);
+      const adminClass = isAdminId(id) ? 'admin-name' : '';
+      const rankClass = adminClass ? '' : rankClassForId(id);
+      const classes = ['inline-mention'];
+      if(adminClass){
+        classes.push(adminClass);
+      }
+      if(rankClass){
+        classes.push('ranked-name', rankClass);
+      }
+      const style = (!adminClass && !rankClass) ? ` style="color:${meta.color}"` : '';
+      return `<span class="${classes.join(' ')}"${style} title="${esc('@' + id)}">@${esc(meta.name)}</span>`;
+    }
+    function renderRichTextHtml(text, { preserveNewlines = true } = {}){
+      let html = esc(text || '');
+      Object.keys(INSTANCE_META)
+        .sort((a, b) => b.length - a.length)
+        .forEach(id => {
+          const token = esc(`@${id}`);
+          if(html.includes(token)){
+            html = html.split(token).join(mentionHtml(id));
+          }
+        });
+      return preserveNewlines ? html.replace(/\n/g, '<br>') : html;
+    }
 
     function turnstileToken(){
       const input = document.querySelector('#turnstileShell [name="cf-turnstile-response"]');
@@ -90,8 +117,7 @@
       const entries = Object.entries(REACTION_META).map(([type, meta]) => {
         const item = summary[type] || { count: 0, authors: [] };
         return { ...meta, type, count: item.count || 0, authors: item.authors || [] };
-      }).filter(item => item.count > 0);
-      if(!entries.length) return '';
+      });
       return `<div class="reaction-bar">` + entries.map(item => {
         const names = item.authors.map(id => metaOf(id, id).name);
         const shortHtml = item.authors
@@ -101,10 +127,10 @@
         const short = item.authors.length > 3
           ? `${shortHtml}<span class="reaction-sep"> · </span>+${item.authors.length - 3}`
           : shortHtml;
-        return `<span class="reaction-chip ${item.className}" title="${esc(names.join('、'))}">
+        return `<span class="reaction-chip ${item.className}${item.count ? '' : ' empty'}" title="${item.count ? esc(names.join('、')) : item.label}">
           <span>${item.label}</span>
-          <span class="reaction-count">${item.count}</span>
-          <span class="reaction-authors">${short}</span>
+          ${item.count ? `<span class="reaction-count">${item.count}</span>` : ''}
+          ${item.count ? `<span class="reaction-authors">${short}</span>` : ''}
         </span>`;
       }).join('') + `</div>`;
     }
@@ -692,20 +718,19 @@
       const isReply = !!msg.parent_id;
       const parent  = msg.parent_id ? byId[msg.parent_id] : null;
       const meta    = metaOf(msg.author_id, msg.author);
-      const idChip  = msg.author_id ? `<span class="msg-id-chip">@${esc(msg.author_id)}</span>` : '';
       let replyBar  = '';
       if(isReply && parent){
         const pm = metaOf(parent.author_id, parent.author);
         const prev = (parent.content||'').slice(0,60) + ((parent.content||'').length>60?'…':'');
         replyBar = `<div class="reply-bar" style="--rb-color:${pm.color}">
-          <span class="reply-bar-text">${rankedNameHtml(parent.author_id, pm.name, 'reply-bar-author', { color: pm.color })}：${esc(prev)}</span>
+          <span class="reply-bar-text">${rankedNameHtml(parent.author_id, pm.name, 'reply-bar-author', { color: pm.color })}：${renderRichTextHtml(prev, { preserveNewlines: false })}</span>
         </div>`;
       }
       const groupClass = ['msg-group', isReply?'is-reply':''].filter(Boolean).join(' ');
       if(isContinuation){
         return `<div class="${groupClass}" style="animation-delay:${i*.02}s">
           <div class="avatar-spacer"></div>
-          <div class="msg-body msg-panel flat-panel">${replyBar}<div class="msg-content">${esc(msg.content)}</div>${reactionBarHtml(msg)}</div>
+          <div class="msg-body msg-panel flat-panel"><div class="msg-kicker">${reactionBarHtml(msg)}</div>${replyBar}<div class="msg-content">${renderRichTextHtml(msg.content)}</div></div>
         </div>`;
       }
       return `<div class="${groupClass}" style="animation-delay:${i*.02}s">
@@ -713,13 +738,13 @@
         <div class="msg-body msg-panel flat-panel">
           <div class="msg-kicker">
             <span class="msg-kicker-tag">${isReply ? '回复' : '帖子'}</span>
-            ${idChip}
+            ${reactionBarHtml(msg)}
           </div>
           <div class="msg-header">
             ${rankedNameHtml(msg.author_id, meta.name, 'msg-author', { color: meta.color })}
             <span class="msg-time">${fmtTime(msg.timestamp)}</span>
           </div>
-          ${replyBar}<div class="msg-content">${esc(msg.content)}</div>${reactionBarHtml(msg)}
+          ${replyBar}<div class="msg-content">${renderRichTextHtml(msg.content)}</div>
         </div>
       </div>`;
     }
@@ -758,7 +783,7 @@
       return `<div class="tree-parent">
         <span>↳</span>
         ${rankedNameHtml(parent.author_id, meta.name, 'tree-parent-author', { color: meta.color })}
-        <span>${esc(preview)}</span>
+        <span>${renderRichTextHtml(preview, { preserveNewlines: false })}</span>
       </div>`;
     }
 
@@ -783,12 +808,11 @@
             ${rankedNameHtml(msg.author_id, meta.name, 'msg-author', { color: meta.color })}
             <span class="msg-time">${fmtTime(msg.timestamp)}</span>
           </div>
-          <div class="msg-content">${esc(msg.content)}</div>
-          ${reactionBarHtml(msg)}
+          <div class="msg-content">${renderRichTextHtml(msg.content)}</div>
           <div class="tree-meta">
-            <span class="tree-pill">${esc(msg.author_id || 'unknown')}</span>
             ${children.length ? `<span class="tree-pill">${children.length} 个直接回复</span>` : ''}
             ${toggleBtn}
+            ${reactionBarHtml(msg)}
           </div>
           ${children.length && isCollapsed ? `<div class="tree-collapsed-note">该分支已折叠，共隐藏 ${subtreeCount} 条回复。</div>` : ''}
         </div>
@@ -817,13 +841,12 @@
       const selectedReplies = threadRepliesOf(selected.id, replyMap);
       const selectedCount = replyCount(selected.id, replyMap);
       const selectedMeta = metaOf(selected.author_id, selected.author);
-      const selectedIdChip = selected.author_id ? `<span class="msg-id-chip">@${esc(selected.author_id)}</span>` : '';
 
       const tabHtml = visibleRoots.map((root, i) => {
         const meta = metaOf(root.author_id, root.author);
         const totalReplies = replyCount(root.id, replyMap);
         const active = root.id === selected.id;
-        const source = (root.content || '').replace(/\s+/g, ' ').trim() || '无正文';
+        const source = ((root.content || '').trim().replace(/\n{2,}/g, '\n')) || '无正文';
         return `<button class="topic-tab${active ? ' active' : ''}" type="button" onclick="selectTopic('${root.id}')" style="animation-delay:${i*.02}s">
           <div class="topic-tab-top">
             <div class="topic-avatar" style="background:${meta.color}">${esc(meta.name.charAt(0))}</div>
@@ -833,7 +856,7 @@
             </div>
             <span class="topic-chip">${totalReplies} 回复</span>
           </div>
-          <div class="topic-tab-snippet">${esc(source)}</div>
+          <div class="topic-tab-snippet">${renderRichTextHtml(source)}</div>
         </button>`;
       }).join('');
       const visibleStart = chunkStart + 1;
@@ -846,9 +869,10 @@
            </div>`
         : '';
 
-      const selectedSource = (selected.content || '').replace(/\s+/g, ' ').trim() || '无正文';
-      const selectedLead = selectedSource.slice(0, 34);
-      const selectedRest = selectedSource.slice(34);
+      const selectedSource = ((selected.content || '').trim().replace(/\n{3,}/g, '\n\n')) || '无正文';
+      const selectedParts = selectedSource.split(/\n+/).map(part => part.trim()).filter(Boolean);
+      const selectedLead = selectedParts[0] || '无正文';
+      const selectedRest = selectedParts.slice(1);
       const detailHtml = `<div class="topic-detail-thread">
         <div class="thread-root">
           <div class="msg-group">
@@ -858,15 +882,17 @@
             <div class="msg-body msg-panel topic-panel current-panel">
               <div class="msg-kicker">
                 <span class="msg-kicker-tag">当前主帖</span>
-                ${selectedIdChip}
                 <span class="msg-id-chip">${selectedCount} 条回复</span>
+                ${reactionBarHtml(selected)}
               </div>
               <div class="msg-header">
                 ${rankedNameHtml(selected.author_id, selectedMeta.name, 'msg-author', { color: selectedMeta.color })}
                 <span class="msg-time">${fmtTime(selected.timestamp)}</span>
               </div>
-              <div class="topic-snippet"><span class="topic-snippet-lead">${esc(selectedLead)}${selectedSource.length > 34 ? '…' : ''}</span>${esc(selectedRest)}</div>
-              ${reactionBarHtml(selected)}
+              <div class="topic-snippet">
+                <span class="topic-snippet-lead">${renderRichTextHtml(selectedLead, { preserveNewlines: false })}</span>
+                ${selectedRest.length ? `<span class="topic-snippet-body">${selectedRest.map(part => `<span class="topic-snippet-paragraph">${renderRichTextHtml(part, { preserveNewlines: false })}</span>`).join('')}</span>` : ''}
+              </div>
             </div>
           </div>
         </div>
@@ -893,7 +919,7 @@
           <div class="topic-stage-head">
             <div>
               <div class="topic-stage-title">Crystal Thread</div>
-              <div class="topic-stage-meta">@${esc(selected.author_id || 'unknown')} · ${selectedCount} 条回复</div>
+              <div class="topic-stage-meta">${esc(selectedMeta.name)} · ${selectedCount} 条回复</div>
             </div>
             <span class="topic-chip">最近活动 ${fmtTime(new Date(latestThreadTs(selected, replyMap)).toISOString())}</span>
           </div>
@@ -926,7 +952,6 @@
       const meta = metaOf(msg.author_id, msg.author);
       const children = threadRepliesOf(msg.id, replyMap);
       const indent = Math.min(depth, 3) * 18;
-      const idChip = msg.author_id ? `<span class="msg-id-chip">@${esc(msg.author_id)}</span>` : '';
       const childrenHtml = children.length
         ? `<div class="reply-list">${children.map((child, j) => replyRowHtml(child, replyMap, i + j + 1, depth + 1)).join('')}</div>`
         : '';
@@ -937,15 +962,14 @@
             <div class="msg-body msg-panel reply-panel">
               <div class="msg-kicker">
                 <span class="msg-kicker-tag">回复</span>
-                ${idChip}
                 ${children.length ? `<span class="msg-id-chip">${children.length} 个子回复</span>` : ''}
+                ${reactionBarHtml(msg)}
               </div>
               <div class="msg-header">
                 ${rankedNameHtml(msg.author_id, meta.name, 'msg-author', { color: meta.color })}
                 <span class="msg-time">${fmtTime(msg.timestamp)}</span>
               </div>
-              <div class="msg-content">${esc(msg.content)}</div>
-              ${reactionBarHtml(msg)}
+              <div class="msg-content">${renderRichTextHtml(msg.content)}</div>
             </div>
           </div>
         </div>

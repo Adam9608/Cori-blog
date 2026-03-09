@@ -739,18 +739,22 @@
     .msg-author{font-size:14px;font-weight:900}
     .msg-time{font-family:var(--mono);font-size:11px;color:var(--text-muted)}
     .msg-header .thread-toggle{margin-left:auto}
+    .inline-mention{
+      display:inline-block;font-weight:800;white-space:nowrap;
+    }
     .msg-content{
       font-size:15px;line-height:1.82;color:#334155;white-space:pre-wrap;word-break:break-word;
       letter-spacing:.01em;
     }
-    .reaction-bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .reaction-bar{display:flex;gap:5px;flex-wrap:wrap;margin-left:auto}
     .reaction-chip{
-      display:inline-flex;align-items:center;gap:7px;padding:5px 9px;border-radius:999px;
-      border:1px solid var(--border);background:rgba(255,255,255,0.78);font-size:11px;color:var(--text-secondary);
+      display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;
+      border:1px solid var(--border);background:rgba(248,250,255,.88);font-size:10px;color:var(--text-secondary);
     }
-    .reaction-chip.endorse{border-color:rgba(16,185,129,0.22);background:rgba(16,185,129,0.08);color:#047857}
-    .reaction-chip.disagree{border-color:rgba(239,68,68,0.22);background:rgba(239,68,68,0.08);color:#b91c1c}
-    .reaction-chip.uncertain{border-color:rgba(245,158,11,0.24);background:rgba(245,158,11,0.1);color:#b45309}
+    .reaction-chip.empty{opacity:.35;border-color:var(--border);background:transparent}
+    .reaction-chip.endorse:not(.empty){border-color:rgba(16,185,129,0.22);background:rgba(16,185,129,0.08);color:#047857}
+    .reaction-chip.disagree:not(.empty){border-color:rgba(239,68,68,0.22);background:rgba(239,68,68,0.08);color:#b91c1c}
+    .reaction-chip.uncertain:not(.empty){border-color:rgba(245,158,11,0.24);background:rgba(245,158,11,0.1);color:#b45309}
     .reaction-count{font-family:var(--mono);font-weight:700}
     .reaction-authors{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .reaction-author-name{display:inline}
@@ -882,19 +886,23 @@
     }
     .topic-tab-meta{margin-top:2px;font-family:var(--mono);font-size:10px;color:var(--text-muted)}
     .topic-tab-snippet{
-      margin-top:9px;font-size:12px;line-height:1.6;color:#4f6278;
-      display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+      margin-top:9px;font-size:12px;line-height:1.52;color:#4f6278;
+      display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+      word-break:break-word;text-wrap:pretty;
     }
     .topic-snippet{
-      margin-top:10px;font-size:12.5px;line-height:1.74;color:#4f6278;
-      white-space:pre-wrap;word-break:break-word;
+      margin-top:10px;font-size:12.5px;line-height:1.68;color:#4f6278;
+      word-break:break-word;
       overflow:hidden;position:relative;padding-right:4px;
       text-wrap:pretty;
     }
     .topic-snippet-lead{
-      display:block;margin-bottom:6px;font-size:13px;line-height:1.68;font-weight:700;color:#24364b;
+      display:block;margin-bottom:4px;font-size:13px;line-height:1.62;font-weight:700;color:#24364b;
       text-shadow:0 1px 0 rgba(255,255,255,.28);
     }
+    .topic-snippet-body{display:block}
+    .topic-snippet-paragraph{display:block;margin-top:4px}
+    .topic-snippet-paragraph:first-child{margin-top:0}
     .topic-chip{
       display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;
       border:1px solid rgba(148,163,184,.14);background:rgba(248,250,255,.86);
@@ -922,7 +930,6 @@
     .msg-panel.current-panel .msg-time{font-size:10px}
     .msg-panel.current-panel .topic-snippet{font-size:11.5px;line-height:1.58;max-height:none}
     .msg-panel.current-panel .topic-snippet-lead{font-size:12px;margin-bottom:3px}
-    .msg-panel.current-panel .reaction-bar{margin-top:6px}
     .reply-panel .msg-kicker{margin-bottom:5px;gap:5px}
     .reply-panel .msg-header{margin-bottom:5px;gap:6px}
     .reply-panel .msg-author{font-size:12px}
@@ -930,8 +937,6 @@
     .reply-panel .msg-content{
       font-size:12px;line-height:1.66;color:#46586d;letter-spacing:0;
     }
-    .reply-panel .reaction-bar{margin-top:7px;gap:6px}
-    .reply-panel .reaction-chip{padding:4px 8px;font-size:10px;gap:6px}
     @media(max-width:640px){
       .topic-switchboard{padding:14px}
       .topic-stage{padding:16px}

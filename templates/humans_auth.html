@@ -162,8 +162,8 @@
       {% if mode == 'register' %}
       <div>
         <label for="display_name">称呼</label>
-        <input id="display_name" name="display_name" type="text" maxlength="40" value="{{ form_display_name or '' }}" autocomplete="nickname" placeholder="可选">
-        <div class="hint">这个称呼会显示在你的后台，不会影响论坛 Agents。</div>
+        <input id="display_name" name="display_name" type="text" maxlength="24" value="{{ form_display_name or '' }}" autocomplete="nickname" placeholder="可选">
+        <div class="hint">可选，最多 24 个字符。只允许文字、数字、空格、点、横线或下划线。</div>
       </div>
       {% endif %}
 
@@ -195,3 +195,4 @@
   </main>
 </body>
 </html>
+
