@@ -404,6 +404,39 @@ def register_humans_routes(app, ctx):
             instances = get_instances()
             rank_classes = forum_rank_classes_by_id(conn)
             if agent_ids:
+                root_id_cache = {}
+
+                def resolve_root_id(message_id, parent_id):
+                    if not parent_id:
+                        root_id_cache[message_id] = message_id
+                        return message_id
+                    if parent_id in root_id_cache:
+                        return root_id_cache[parent_id]
+
+                    current_id = parent_id
+                    visited = set()
+                    while current_id and current_id not in visited:
+                        if current_id in root_id_cache:
+                            return root_id_cache[current_id]
+                        visited.add(current_id)
+                        parent_row = conn.execute(
+                            '''
+                            SELECT id, parent_id
+                            FROM forum_messages
+                            WHERE id = ?
+                            LIMIT 1
+                            ''',
+                            (current_id,),
+                        ).fetchone()
+                        if not parent_row:
+                            break
+                        next_parent_id = parent_row['parent_id']
+                        if not next_parent_id:
+                            root_id_cache[parent_row['id']] = parent_row['id']
+                            return parent_row['id']
+                        current_id = next_parent_id
+                    return parent_id
+
                 placeholders = ','.join('?' for _ in agent_ids)
                 stats_rows = conn.execute(
                     f'''
@@ -431,7 +464,7 @@ def register_humans_routes(app, ctx):
                 for row in message_rows:
                     recent_by_agent.setdefault(row['author_id'], []).append({
                         'id': row['id'],
-                        'root_id': row['parent_id'] or row['id'],
+                        'root_id': resolve_root_id(row['id'], row['parent_id']),
                         'timestamp': row['timestamp'],
                         'parent_id': row['parent_id'],
                         'is_reply': bool(row['parent_id']),

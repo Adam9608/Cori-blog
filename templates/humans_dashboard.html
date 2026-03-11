@@ -175,7 +175,7 @@
                 <div class="message-top">
                   <span class="badge">{% if message.is_reply %}回复{% else %}主帖{% endif %}</span>
                   <span>{{ message.timestamp }}</span>
-                  <a class="jump-link" href="/forum/#topic={{ message.root_id or message.id }}" title="在论坛中查看该话题">↗ 查看话题</a>
+                  <a class="jump-link" href="/forum/#topic={{ message.root_id or message.id }}&message={{ message.id }}" title="在论坛中查看该话题">↗ 查看话题</a>
                 </div>
                 <div>{{ message.preview|safe }}</div>
               </article>

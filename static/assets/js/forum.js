@@ -11,6 +11,7 @@
     let expandedThreads = new Set();
     let collapsedTreeNodes = new Set();
     let selectedThreadId = null;
+    let selectedThreadMessageId = null;
     let topicChunkPage = 1;
     let viewMode = 'topic';
     let lastLoadedAt = null;
@@ -573,7 +574,10 @@
       }
       el.innerHTML = top5.map((t, i) => {
         const meta = metaOf(t.root.author_id);
-        const preview = (t.root.content || '').replace(/\n/g, ' ').slice(0, 36);
+        const preview = (t.root.content || '')
+          .replace(/\n/g, ' ')
+          .replace(/@(\d{14}_\d+)/g, (_, id) => `@${metaOf(id, id).name}`)
+          .slice(0, 36);
         const typeChip = t.root.post_type === 'skill'
           ? '<span class="hot-type-chip type-skill">技能</span>'
           : t.root.post_type === 'bounty'
@@ -584,7 +588,7 @@
           <div class="hot-topic-body">
             <div class="hot-topic-title">${typeChip}${esc(preview)}…</div>
             <div class="hot-topic-meta">
-              ${rankedNameHtml(t.root.author_id, meta.name, 'hot-topic-author', { color: meta.color })}
+              <span class="hot-topic-author" style="color:${meta.color}">${esc(meta.name || t.root.author || t.root.author_id || 'Unknown')}</span>
               <span class="hot-topic-stats">${t.replyCount} 回复 · ${t.participants} 人参与</span>
             </div>
           </div>
@@ -845,12 +849,60 @@
       });
     }
 
-    function openThreadModal(rootId){
+    function parseThreadHash(){
+      const raw = (window.location.hash || '').replace(/^#/, '').trim();
+      const params = new URLSearchParams(raw);
+      return {
+        topicId: (params.get('topic') || '').trim(),
+        messageId: (params.get('message') || '').trim(),
+      };
+    }
+
+    function syncThreadHash(rootId, messageId){
+      const params = new URLSearchParams();
+      if(rootId) params.set('topic', rootId);
+      if(messageId) params.set('message', messageId);
+      const nextHash = params.toString();
+      if(nextHash){
+        history.replaceState(null, '', `#${nextHash}`);
+      }
+    }
+
+    function clearThreadHash(){
+      if(window.location.hash){
+        history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+      }
+    }
+
+    function focusThreadMessage(){
+      if(!selectedThreadMessageId) return;
+      const body = document.getElementById('threadModalBody');
+      if(!body) return;
+      const target = body.querySelector(`[data-message-id="${selectedThreadMessageId}"]`);
+      if(!target) return;
+      target.classList.add('thread-message-target');
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      window.setTimeout(() => target.classList.remove('thread-message-target'), 1800);
+    }
+
+    function applyThreadHash(){
+      const { topicId, messageId } = parseThreadHash();
+      if(!topicId) return false;
+      openThreadModal(topicId, { messageId: messageId || topicId, syncHash: false });
+      return true;
+    }
+
+    function openThreadModal(rootId, options = {}){
+      const { messageId = null, syncHash = true } = options;
       selectedThreadId = rootId;
+      selectedThreadMessageId = messageId || rootId;
       const modal = document.getElementById('threadModal');
       if(!modal) return;
       modal.classList.add('open');
       setPageScrollLock(true);
+      if(syncHash){
+        syncThreadHash(rootId, selectedThreadMessageId);
+      }
       renderThreadModal();
     }
     function closeThreadModal(){
@@ -858,6 +910,8 @@
       if(!modal) return;
       modal.classList.remove('open');
       setPageScrollLock(false);
+      selectedThreadMessageId = null;
+      clearThreadHash();
     }
     function onThreadBackdrop(e){ if(e.target.id==='threadModal') closeThreadModal(); }
     function renderThreadModal(){
@@ -880,7 +934,7 @@
       const rest = parts.slice(1);
       body.innerHTML = `<div class="topic-detail-thread">
         <div class="thread-root">
-          <div class="msg-group">
+          <div class="msg-group thread-message-block" data-message-id="${root.id}">
             <div class="avatar-col">
               <div class="avatar" style="background:${meta.color}">${esc(meta.name.charAt(0))}</div>
             </div>
@@ -907,6 +961,7 @@
             : `<div class="topic-detail-empty">这个话题还没有回复。</div>`}
         </div>
       </div>`;
+      focusThreadMessage();
     }
 
     function toggleTreeNode(id){
@@ -1106,8 +1161,8 @@
       const childrenHtml = children.length
         ? `<div class="reply-list">${children.map((child, j) => replyRowHtml(child, replyMap, i + j + 1, depth + 1)).join('')}</div>`
         : '';
-      return `<div class="reply-branch">
-        <div class="reply-node" style="animation-delay:${i*.02}s;--reply-indent:${indent}px">
+        return `<div class="reply-branch">
+          <div class="reply-node thread-message-block" data-message-id="${msg.id}" style="animation-delay:${i*.02}s;--reply-indent:${indent}px">
           <div class="msg-group" style="padding:4px 0">
             <div class="avatar-col"><div class="avatar" style="background:${meta.color}">${esc(meta.name.charAt(0))}</div></div>
             <div class="msg-body msg-panel reply-panel">
@@ -1263,10 +1318,14 @@
         if(luTimer) clearInterval(luTimer);
         luTimer = setInterval(updateLuText, 15000);
 
-        if(unchanged && !forceRender) return;
+        if(unchanged && !forceRender){
+          applyThreadHash();
+          return;
+        }
         renderSidebar();
         renderFeed({ quiet: quiet || hasRenderedOnce });
         renderHotTopics();
+        applyThreadHash();
       }catch(e){
         const el = document.getElementById('errMsg');
         el.style.display = 'block';
@@ -1284,16 +1343,11 @@
         closeThreadModal();
       }
     });
+    window.addEventListener('hashchange', () => {
+      applyThreadHash();
+    });
     loadInstanceMeta().then(() => {
-      loadMessages({ forceRender: true }).then(() => {
-        // handle #topic=<id> from external links (e.g. companion page)
-        const hash = location.hash;
-        if(hash.startsWith('#topic=')){
-          const topicId = hash.slice(7);
-          if(topicId) setTimeout(() => jumpToTopic(topicId), 300);
-          history.replaceState(null, '', location.pathname + location.search);
-        }
-      });
+      loadMessages({ forceRender: true });
       checkStatus(); loadPopularity(); loadActivity();
     });
     setInterval(() => {
