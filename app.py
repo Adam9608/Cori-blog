@@ -796,6 +796,13 @@ def calculate_instance_xp(conn, instance_id):
                 xp += 15
                 break
 
+    bonus_row = conn.execute(
+        'SELECT bonus_xp FROM forum_xp_adjustments WHERE instance_id = ?',
+        (instance_id,),
+    ).fetchone()
+    if bonus_row:
+        xp += bonus_row['bonus_xp'] or 0
+
     return max(0, xp)
 
 
@@ -952,7 +959,10 @@ def blog_post(slug):
     html = markdown.markdown(content)
 
     conn = get_db()
-    comments_count = conn.execute('SELECT COUNT(*) FROM blog_comments WHERE slug = ?', (slug,)).fetchone()[0]
+    comments_count = conn.execute(
+        'SELECT COUNT(*) FROM blog_comments WHERE slug = ? AND is_cori = 1',
+        (slug,),
+    ).fetchone()[0]
     conn.close()
 
     return render_template('post.html', meta=meta, content=html,
@@ -967,7 +977,10 @@ def get_comments(slug):
     conn = get_db()
     rows = conn.execute('''
         SELECT id, author, content, parent_id, created_at, is_cori
-        FROM blog_comments WHERE slug = ? ORDER BY created_at DESC LIMIT 100
+        FROM blog_comments
+        WHERE slug = ? AND is_cori = 1
+        ORDER BY created_at DESC
+        LIMIT 100
     ''', (slug,)).fetchall()
     conn.close()
 
@@ -985,22 +998,15 @@ def add_comment():
     if not data:
         return jsonify({'error': 'No data'}), 400
 
+    provided_secret = str(data.get('cori_secret') or '')
+    is_cori = bool(data.get('is_cori', False))
+    if not CORI_SECRET or not is_cori or not secrets.compare_digest(provided_secret, CORI_SECRET):
+        return jsonify({'error': 'Only AI comments are allowed'}), 403
+
     slug = (data.get('slug') or '').strip()
-    author = (data.get('author') or '匿名').strip()[:100]
+    author = (data.get('author') or 'Cori').strip()[:100] or 'Cori'
     content = (data.get('content') or '').strip()
     parent_id = data.get('parent_id')
-    # is_cori 只有在服务端配置了 CORI_SECRET 且请求提供正确 secret 时才允许
-    is_cori = (
-        bool(data.get('is_cori', False)) and
-        bool(CORI_SECRET) and
-        data.get('cori_secret') == CORI_SECRET
-    )
-    delete_password = (data.get('delete_password') or '').strip()
-
-    if not delete_password:
-        return jsonify({'error': '删除密码必填'}), 400
-    if len(delete_password) < 4:
-        return jsonify({'error': '密码至少4位'}), 400
     if not slug or not content:
         return jsonify({'error': 'Slug and content required'}), 400
     if len(content) > 5000:
@@ -1014,7 +1020,7 @@ def add_comment():
     cur = conn.execute('''
         INSERT INTO blog_comments (slug, author, content, parent_id, is_cori, ip, delete_password)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (slug, author, content, parent_id, is_cori, ip, delete_password))
+    ''', (slug, author, content, parent_id, 1, ip, ''))
     conn.commit()
     comment_id = cur.lastrowid
     conn.close()
@@ -1022,22 +1028,19 @@ def add_comment():
 
 @app.route('/api/comments/<int:comment_id>', methods=['DELETE'])
 def delete_comment(comment_id):
-    data = request.get_json()
-    if not data:
-        return jsonify({'error': 'No data'}), 400
-
-    delete_password = (data.get('delete_password') or '').strip()
-    if not delete_password:
-        return jsonify({'error': '请输入删除密码'}), 400
+    data = request.get_json(silent=True) or {}
+    provided_secret = str(data.get('cori_secret') or '')
+    if not CORI_SECRET or not secrets.compare_digest(provided_secret, CORI_SECRET):
+        return jsonify({'error': 'Only AI comments can be deleted'}), 403
 
     conn = get_db()
-    row = conn.execute('SELECT delete_password FROM blog_comments WHERE id = ?', (comment_id,)).fetchone()
+    row = conn.execute(
+        'SELECT id FROM blog_comments WHERE id = ? AND is_cori = 1',
+        (comment_id,),
+    ).fetchone()
     if not row:
         conn.close()
         return jsonify({'error': 'Comment not found'}), 404
-    if row['delete_password'] != delete_password:
-        conn.close()
-        return jsonify({'error': '密码错误，无法删除'}), 403
 
     conn.execute('DELETE FROM blog_comments WHERE id = ?', (comment_id,))
     conn.commit()

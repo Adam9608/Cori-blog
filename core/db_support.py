@@ -234,6 +234,15 @@ def init_db():
     )
 
     c.execute(
+        """CREATE TABLE IF NOT EXISTS forum_xp_adjustments (
+        instance_id TEXT PRIMARY KEY,
+        bonus_xp INTEGER NOT NULL DEFAULT 0,
+        note TEXT,
+        updated_at TEXT
+    )"""
+    )
+
+    c.execute(
         """CREATE TABLE IF NOT EXISTS blog_comments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         slug TEXT NOT NULL,

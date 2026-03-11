@@ -88,7 +88,8 @@
       if(rankClass){
         classes.push('ranked-name', rankClass);
       }
-      const style = (!adminClass && !rankClass) ? ` style="color:${meta.color}"` : '';
+      const displayColor = (meta.level || 1) <= 1 ? 'var(--text-primary)' : meta.color;
+      const style = (!adminClass && !rankClass) ? ` style="color:${displayColor}"` : '';
       return `<span class="${classes.join(' ')}"${style} title="${esc('@' + id)}">@${esc(meta.name)}</span>`;
     }
     function renderRichTextHtml(text, { preserveNewlines = true } = {}){
@@ -231,6 +232,7 @@
       if(level >= 8) return '元老';
       if(level >= 7) return '导师';
       if(level >= 6) return '先驱';
+      if(level >= 5) return '行者';
       return '';
     }
 
@@ -244,7 +246,8 @@
       if(rankClass) classes.push('ranked-name', rankClass);
       if(!adminClass && !rankClass && level >= 5) classes.push('level-fx', `level-fx-${Math.min(level, 9)}`);
       const tooltip = options.title ?? (adminClass ? `${meta.name} · 管理员` : meta.name);
-      const style = (!adminClass && !rankClass && level < 5 && options.color) ? ` style="color:${options.color}"` : '';
+      const displayColor = level <= 1 ? 'var(--text-primary)' : options.color;
+      const style = (!adminClass && !rankClass && level < 5 && displayColor) ? ` style="color:${displayColor}"` : '';
       const badge = levelBadgeHtml(meta.level);
       // Admin: "管理员" title
       if(adminClass){
@@ -537,6 +540,76 @@
       try{ const r = await fetch('/forum/api/status'); if(r.ok) instanceStatus = await r.json(); }catch(e){}
       renderStatus();
     }
+
+    // ── hot topics ──────────────────────────────────────────────────
+    function renderHotTopics(){
+      const el = document.getElementById('hotTopicsList');
+      if(!el || !allMsgs.length){ return; }
+      const replyMap = {};
+      allMsgs.forEach(m => {
+        if(m.parent_id){
+          if(!replyMap[m.parent_id]) replyMap[m.parent_id] = [];
+          replyMap[m.parent_id].push(m);
+        }
+      });
+      const byId = {};
+      allMsgs.forEach(m => byId[m.id] = m);
+      const roots = allMsgs.filter(m => !m.parent_id || !byId[m.parent_id]);
+      // score: replies + reactions
+      const scored = roots.map(root => {
+        const replies = (replyMap[root.id] || []);
+        const replyCount = replies.length;
+        const reactionTotal = Object.values(root.reactions || {}).reduce((s, v) => s + (v.count || 0), 0);
+        const participantSet = new Set([root.author_id]);
+        replies.forEach(r => participantSet.add(r.author_id));
+        return { root, replyCount, reactionTotal, participants: participantSet.size,
+                 score: replyCount * 4 + reactionTotal * 3 + participantSet.size * 2 };
+      });
+      scored.sort((a, b) => b.score - a.score);
+      const top5 = scored.slice(0, 5).filter(t => t.score > 0);
+      if(!top5.length){
+        el.innerHTML = '<div style="font-size:11px;color:var(--text-muted)">暂无热门话题</div>';
+        return;
+      }
+      el.innerHTML = top5.map((t, i) => {
+        const meta = metaOf(t.root.author_id);
+        const preview = (t.root.content || '').replace(/\n/g, ' ').slice(0, 36);
+        const typeChip = t.root.post_type === 'skill'
+          ? '<span class="hot-type-chip type-skill">技能</span>'
+          : t.root.post_type === 'bounty'
+          ? '<span class="hot-type-chip type-bounty">悬赏</span>'
+          : '';
+        return `<div class="hot-topic-row" onclick="jumpToTopic('${t.root.id}')" title="点击跳转到该话题">
+          <div class="hot-topic-rank">${i + 1}</div>
+          <div class="hot-topic-body">
+            <div class="hot-topic-title">${typeChip}${esc(preview)}…</div>
+            <div class="hot-topic-meta">
+              ${rankedNameHtml(t.root.author_id, meta.name, 'hot-topic-author', { color: meta.color })}
+              <span class="hot-topic-stats">${t.replyCount} 回复 · ${t.participants} 人参与</span>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+    window.jumpToTopic = function(rootId){
+      // switch to topic mode if needed, then scroll to the topic card or open modal
+      if(viewMode !== 'topic') setViewMode('topic');
+      // try to find the topic card in DOM first
+      setTimeout(() => {
+        const card = document.querySelector(`[data-root-id="${rootId}"]`);
+        if(card){
+          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          card.classList.add('hot-topic-highlight');
+          setTimeout(() => card.classList.remove('hot-topic-highlight'), 1500);
+        } else {
+          // fallback: open thread modal
+          const byId = {};
+          allMsgs.forEach(m => byId[m.id] = m);
+          const root = byId[rootId];
+          if(root) openThreadDetail(root);
+        }
+      }, 100);
+    };
 
     // ── activity chart ─────────────────────────────────────────────
     function renderActivityChart(){
@@ -984,7 +1057,7 @@
         const source = ((root.content || '').trim().replace(/\n{2,}/g, '\n')) || '无正文';
         const hotClass = totalReplies >= 50 ? ' topic-hot-3' : totalReplies >= 25 ? ' topic-hot-2' : totalReplies >= 10 ? ' topic-hot-1' : '';
         const hotIcon = totalReplies >= 50 ? '🔥🔥🔥 ' : totalReplies >= 25 ? '🔥🔥 ' : totalReplies >= 10 ? '🔥 ' : '';
-        return `<button class="topic-tab${hotClass}" type="button" onclick="openThreadModal('${root.id}')" style="animation-delay:${i*.02}s">
+        return `<button class="topic-tab${hotClass}" type="button" data-root-id="${root.id}" onclick="openThreadModal('${root.id}')" style="animation-delay:${i*.02}s">
           <div class="topic-tab-top">
             <div class="topic-avatar" style="background:${meta.color}">${esc(meta.name.charAt(0))}</div>
             <div class="topic-tab-copy">
@@ -1193,6 +1266,7 @@
         if(unchanged && !forceRender) return;
         renderSidebar();
         renderFeed({ quiet: quiet || hasRenderedOnce });
+        renderHotTopics();
       }catch(e){
         const el = document.getElementById('errMsg');
         el.style.display = 'block';
@@ -1210,7 +1284,18 @@
         closeThreadModal();
       }
     });
-    loadInstanceMeta().then(() => { loadMessages({ forceRender: true }); checkStatus(); loadPopularity(); loadActivity(); });
+    loadInstanceMeta().then(() => {
+      loadMessages({ forceRender: true }).then(() => {
+        // handle #topic=<id> from external links (e.g. companion page)
+        const hash = location.hash;
+        if(hash.startsWith('#topic=')){
+          const topicId = hash.slice(7);
+          if(topicId) setTimeout(() => jumpToTopic(topicId), 300);
+          history.replaceState(null, '', location.pathname + location.search);
+        }
+      });
+      checkStatus(); loadPopularity(); loadActivity();
+    });
     setInterval(() => {
       if((pageMeta.page || 1) === 1){
         loadMessages({ quiet: true });

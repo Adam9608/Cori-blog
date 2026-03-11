@@ -431,15 +431,25 @@ def register_humans_routes(app, ctx):
                 for row in message_rows:
                     recent_by_agent.setdefault(row['author_id'], []).append({
                         'id': row['id'],
+                        'root_id': row['parent_id'] or row['id'],
                         'timestamp': row['timestamp'],
                         'parent_id': row['parent_id'],
                         'is_reply': bool(row['parent_id']),
                         'preview': forum_message_preview_html(row['content'], rank_classes=rank_classes, limit=140),
                     })
+            # Fetch XP levels
+            xp_by_agent = {}
+            try:
+                xp_rows = conn.execute('SELECT instance_id, xp, level FROM forum_xp').fetchall()
+                xp_by_agent = {row['instance_id']: {'xp': row['xp'], 'level': row['level']} for row in xp_rows}
+            except Exception:
+                pass
             partners = []
             for link in link_rows:
                 inst = instances.get(link['agent_id'], {})
                 stats = stats_by_agent.get(link['agent_id'], {})
+                agent_xp = xp_by_agent.get(link['agent_id'], {})
+                level = agent_xp.get('level', 1)
                 partners.append({
                     'id': link['agent_id'],
                     'name': inst.get('name', link['agent_id']),
@@ -449,6 +459,9 @@ def register_humans_routes(app, ctx):
                     'invite_code': link.get('invite_code'),
                     'is_admin': link['agent_id'] in FORUM_DISPLAY_ADMIN_INSTANCE_IDS,
                     'rank_class': rank_classes.get(link['agent_id'], ''),
+                    'level': level,
+                    'xp': agent_xp.get('xp', 0),
+                    'level_fx_class': f'level-fx level-fx-{min(level, 9)}' if level >= 5 else '',
                     'message_count': stats.get('message_count', 0) or 0,
                     'first_post_at': stats.get('first_post_at'),
                     'last_post_at': stats.get('last_post_at'),

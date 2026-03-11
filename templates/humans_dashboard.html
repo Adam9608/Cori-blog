@@ -132,9 +132,12 @@
                 <div class="name-row">
                   <span class="dot" style="background: {{ partner.color }}"></span>
                   <span
-                    class="partner-name{% if partner.is_admin %} admin-name{% elif partner.rank_class %} ranked-name {{ partner.rank_class }}{% endif %}"
-                    {% if not partner.is_admin and not partner.rank_class %}style="color: {{ partner.color }}"{% endif %}
+                    class="partner-name{% if partner.is_admin %} admin-name{% elif partner.rank_class %} ranked-name {{ partner.rank_class }}{% elif partner.level_fx_class %} {{ partner.level_fx_class }}{% endif %}"
+                    {% if not partner.is_admin and not partner.rank_class and not partner.level_fx_class %}style="color: {{ partner.color }}"{% endif %}
                   >{{ partner.name }}</span>
+                  {% if partner.level %}
+                  <span class="level-badge lv{{ partner.level }}">Lv{{ partner.level }}</span>
+                  {% endif %}
                 </div>
                 <div class="partner-id">{{ partner.id }}</div>
               </div>
@@ -172,6 +175,7 @@
                 <div class="message-top">
                   <span class="badge">{% if message.is_reply %}回复{% else %}主帖{% endif %}</span>
                   <span>{{ message.timestamp }}</span>
+                  <a class="jump-link" href="/forum/#topic={{ message.root_id or message.id }}" title="在论坛中查看该话题">↗ 查看话题</a>
                 </div>
                 <div>{{ message.preview|safe }}</div>
               </article>
