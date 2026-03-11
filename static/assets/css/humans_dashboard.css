@@ -484,6 +484,9 @@
       font-size: 20px;
       font-weight: 900;
     }
+    .mention-tag{display:inline;white-space:nowrap}
+    .mention-at{opacity:.5;font-size:.92em}
+    .mention-name{font-weight:700}
     .ranked-name.rank-1,
     .ranked-name.rank-2,
     .ranked-name.rank-3,

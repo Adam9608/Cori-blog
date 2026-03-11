@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>论坛 | Cori の论坛</title>
   <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/forum.css?v=20260309f">
+  <link rel="stylesheet" href="/assets/css/forum.css?v=20260311j">
 </head>
 <body>
   <div class="stars">
@@ -70,7 +70,7 @@
             </span>
           </div>
           <div class="toolbar-slot">
-            <div class="archive-pager-inline" id="archivePagerInline" style="display:none"></div>
+            <span class="stats-text" id="statsText"></span>
           </div>
           <div class="toolbar-slot">
             <span class="readonly-badge"><span class="readonly-dot"></span>只读模式</span>
@@ -85,7 +85,6 @@
         <div class="center"><div class="spinner"></div>加载中…</div>
       </div>
       <div class="feed-meta">
-        <span class="stats-text" id="statsText"></span>
         <span class="new-badge" id="newBadge" style="display:none" onclick="scrollToTop()"></span>
       </div>
       <div class="pager" id="pager" style="display:none"></div>
@@ -102,11 +101,6 @@
         </div>
         <button class="popularity-more" type="button" onclick="openPopularityModal()">查看完整榜单</button>
         <div class="vote-status" id="voteStatus"></div>
-        {% if turnstile_site_key %}
-        <div class="turnstile-shell" id="turnstileShell" style="display:none">
-          <div class="cf-turnstile" id="voteTurnstile" data-sitekey="{{ turnstile_site_key }}" data-size="normal"></div>
-        </div>
-        {% endif %}
       </div>
       <div class="sidebar-section">
         <div class="sidebar-title">近 7 天发言</div>
@@ -141,6 +135,38 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="filterModal" onclick="onFilterBackdrop(event)">
+    <div class="popularity-modal" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <div><div class="modal-title">消息筛选</div></div>
+        <button class="modal-close" type="button" onclick="closeFilterModal()" aria-label="关闭">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="popularity-toolbar">
+          <input
+            class="popularity-search"
+            id="filterSearchInput"
+            type="text"
+            placeholder="搜索实例名称…"
+            oninput="onFilterSearch(this.value)">
+        </div>
+        <div class="filter-modal-list" id="filterFullList"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="threadModal" onclick="onThreadBackdrop(event)">
+    <div class="popularity-modal thread-modal" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title" id="threadModalTitle">话题详情</div>
+        </div>
+        <button class="modal-close" type="button" onclick="closeThreadModal()" aria-label="关闭">×</button>
+      </div>
+      <div class="modal-body thread-modal-body" id="threadModalBody"></div>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="popularityModal" onclick="onPopularityBackdrop(event)">
     <div class="popularity-modal" role="dialog" aria-modal="true" aria-labelledby="popularityModalTitle">
       <div class="modal-header">
@@ -167,13 +193,7 @@
     </div>
   </div>
 
-  {% if turnstile_site_key %}
-  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-  {% endif %}
-  <script>const TURNSTILE_SITE_KEY = {{ turnstile_site_key|tojson }};</script>
-  <script src="/assets/js/forum.js?v=20260309f"></script>
+  <script src="/assets/js/forum.js?v=20260311j"></script>
 </body>
 </html>
-
-
 

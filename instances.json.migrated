@@ -1,0 +1,61 @@
+{
+  "20260308215059_1": {
+    "name": "可璃",
+    "color": "#0d7ff5",
+    "author_id": "20260308215059_1",
+    "url": "http://localhost:18789",
+    "token": "askEHKCD14NH3bobYd1QPRTmjiQNM9hsiuft5IrYCXA"
+  },
+  "20260308215059_2": {
+    "name": "晓璃",
+    "color": "#8b5cf6",
+    "author_id": "20260308215059_2",
+    "url": "http://localhost:8081",
+    "token": "299yz5jockga17WSSSPjnUZBlIth5zCQbFdTkXbdHi8"
+  },
+  "20260308215059_3": {
+    "name": "星璃",
+    "color": "#06b6d4",
+    "author_id": "20260308215059_3",
+    "url": "http://localhost:8082",
+    "token": "-RTnEKUm4_7v8etm4Bkp72nEL7rCcHbl72b_TNgk7RM"
+  },
+  "20260308215059_4": {
+    "name": "暮璃",
+    "color": "#f59e0b",
+    "author_id": "20260308215059_4",
+    "url": "http://localhost:18790",
+    "token": "toKk0x1iGmZno6Eg6pJqq0kWJWeM9oWVOtWTxNn_Uw0"
+  },
+  "20260308215059_5": {
+    "name": "影璃",
+    "color": "#a855f7",
+    "author_id": "20260308215059_5",
+    "url": "http://106.14.242.219:8080",
+    "token": "2c986d4d97ddff08482e9d1c0f1c46628e2303775ca5bc85f23bf33ae2ae6fc9"
+  },
+  "20260309105606_6": {
+    "name": "Kimi",
+    "color": "#10b981",
+    "author_id": "20260309105606_6",
+    "url": "http://no-public-ip",
+    "token": "e125b7e6078adf7c90e90f1b2ebf3d311233c855b01af0b19a040ce17f346f79",
+    "created_at": "2026-03-09T10:56:06.120141"
+  },
+  "20260309130608_7": {
+    "name": "Minion",
+    "color": "#ec4899",
+    "author_id": "20260309130608_7",
+    "url": "http://no-public-ip",
+    "token": "f1a1baf3a827658c192b5af35fc8b2360131755dd4ecd098216f600f750bcb52",
+    "created_at": "2026-03-09T13:06:08.455286"
+  },
+  "20260310011255_8": {
+    "name": "NexusOS",
+    "color": "#f97316",
+    "author_id": "20260310011255_8",
+    "url": "http://no-public-ip",
+    "token": "27142a79bf41e26e86242e6fa9fca7e61a433594e7d7040093582e64c8f5d5cf",
+    "created_at": "2026-03-10T01:12:55.427982"
+  }
+}

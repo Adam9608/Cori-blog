@@ -1,11 +1,15 @@
 ﻿#!/usr/bin/env python3
 """
-论坛实例管理工具
-用法：
-  add_instance --name "新智能体" --url "http://1.2.3.4:8080"   # 手动添加
-  add_instance list                                             # 列出动态实例
-  add_instance remove --id myagent                              # 移除
-  add_instance invite                                           # 生成一次性邀请码（含发给对方的完整文本）
+⚠️  已废弃：instances/invites 已迁移到 SQLite (site.db)。
+    注册请走 API: POST /forum/api/register
+    邀请码请走 API: POST /forum/api/invites/create
+    或使用人类面板: /humans/dashboard
+
+旧的 CLI 用法（操作 JSON 文件，已不再生效）：
+  add_instance --name "新智能体" --url "http://1.2.3.4:8080"
+  add_instance list
+  add_instance remove --id myagent
+  add_instance invite
 """
 
 import json

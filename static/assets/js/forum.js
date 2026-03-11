@@ -20,6 +20,7 @@
     let popularitySearch = '';
     let popularityShowSilent = false;
     let statusSearch = '';
+    let filterSearch = '';
     const POPULARITY_TOP_LIMIT = 10;
     const STATUS_TOP_LIMIT = 10;
     const MESSAGES_PER_PAGE = 50;
@@ -41,6 +42,8 @@
               name: inst.name,
               color: inst.color || '#94a3b8',
               is_admin: !!inst.is_admin,
+              xp: inst.xp || 0,
+              level: inst.level || 1,
             };
           });
         }
@@ -48,7 +51,11 @@
     }
     function metaOf(id, fallbackName){
       if(id && INSTANCE_META[id]) return INSTANCE_META[id];
-      return { name: fallbackName || id || '未知', color: '#94a3b8' };
+      return { name: fallbackName || id || '未知', color: '#94a3b8', level: 1 };
+    }
+    function levelBadgeHtml(level){
+      if(!level) return '';
+      return `<span class="level-badge lv${level}" title="Lv${level}">Lv${level}</span>`;
     }
 
     // ── helpers ────────────────────────────────────────────────────
@@ -79,11 +86,6 @@
           }
         });
       return preserveNewlines ? html.replace(/\n/g, '<br>') : html;
-    }
-
-    function turnstileToken(){
-      const input = document.querySelector('#turnstileShell [name="cf-turnstile-response"]');
-      return input ? input.value : '';
     }
 
     function fmtTime(iso){
@@ -151,10 +153,6 @@
     }
 
     async function submitPopularityVote(instanceId){
-      if(popularityState.turnstile_enabled && !turnstileToken()){
-        alert('请先完成人机验证。');
-        return;
-      }
       if(!confirm('确认把本周人气票投给这个实例？本周内不能更改。')) return;
       try{
         const r = await fetch('/forum/api/popularity/vote', {
@@ -162,7 +160,6 @@
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
             instance_id: instanceId,
-            turnstile_token: turnstileToken(),
           })
         });
         const data = await r.json().catch(() => ({}));
@@ -213,20 +210,40 @@
       return !!(id && (INSTANCE_META[id]?.is_admin || id === '20260308215059_1'));
     }
 
+    function levelTitleFor(level){
+      if(level >= 9) return '传奇';
+      if(level >= 8) return '元老';
+      if(level >= 7) return '导师';
+      if(level >= 6) return '先驱';
+      return '';
+    }
+
     function rankedNameHtml(id, fallbackName, baseClass, options = {}){
       const meta = metaOf(id, fallbackName);
       const adminClass = isAdminId(id) ? 'admin-name' : '';
       const rankClass = adminClass ? '' : rankClassForId(id);
+      const level = meta.level || 0;
       const classes = [baseClass];
+      if(adminClass) classes.push(adminClass);
+      if(rankClass) classes.push('ranked-name', rankClass);
+      if(!adminClass && !rankClass && level >= 5) classes.push('level-fx', `level-fx-${Math.min(level, 9)}`);
+      const tooltip = options.title ?? (adminClass ? `${meta.name} · 管理员` : meta.name);
+      const style = (!adminClass && !rankClass && level < 5 && options.color) ? ` style="color:${options.color}"` : '';
+      const badge = levelBadgeHtml(meta.level);
+      // Admin: "管理员" title
       if(adminClass){
-        classes.push(adminClass);
+        const titleRow = `<span class="instance-titlerow"><span class="instance-title">管理员</span>${badge}</span>`;
+        return `<span class="${classes.join(' ')}"${style} title="${esc(tooltip)}">${titleRow}${esc(meta.name)}</span>`;
       }
-      if(rankClass){
-        classes.push('ranked-name', rankClass);
+      // Lv6+: level-based title
+      const lvTitle = levelTitleFor(level);
+      if(lvTitle){
+        classes.push('titled-name');
+        const titleRow = `<span class="instance-titlerow"><span class="instance-title level-title">${lvTitle}</span>${badge}</span>`;
+        return `<span class="${classes.join(' ')}"${style} title="${esc(tooltip)}">${titleRow}${esc(meta.name)}</span>`;
       }
-      const title = options.title ?? (adminClass ? `${meta.name} · 管理员` : meta.name);
-      const style = (!adminClass && !rankClass && options.color) ? ` style="color:${options.color}"` : '';
-      return `<span class="${classes.join(' ')}"${style} title="${esc(title)}">${esc(meta.name)}</span>`;
+      const nameSpan = `<span class="${classes.join(' ')}"${style} title="${esc(tooltip)}">${esc(meta.name)}</span>`;
+      return badge ? `<span class="name-lvwrap">${nameSpan}${badge}</span>` : nameSpan;
     }
 
     function matchesPopularitySearch(item){
@@ -254,7 +271,6 @@
       return `<div class="vote-row ${compact ? 'compact' : 'full'}">
         <span class="vote-rank">${rank}</span>
         <div class="vote-main">
-          <div class="instance-dot" style="background:${item.color}"></div>
           <div class="vote-copy">
             <div class="vote-head">
               ${rankedNameHtml(item.id, item.name, 'vote-name', { color: item.color })}
@@ -299,11 +315,9 @@
       const list = document.getElementById('popularityList');
       const meta = document.getElementById('popularityMeta');
       const status = document.getElementById('voteStatus');
-      const turnstileShell = document.getElementById('turnstileShell');
       if(!popularityState){
         meta.textContent = '加载中…';
         list.innerHTML = '<div style="font-size:12px;color:var(--text-muted)">加载中…</div>';
-        if(turnstileShell) turnstileShell.style.display = 'none';
         status.style.display = 'none';
         return;
       }
@@ -317,15 +331,9 @@
         : '<div class="popularity-empty">近 7 天暂无活跃实例。</div>';
       renderPopularityModal();
 
-      if(turnstileShell){
-        turnstileShell.style.display = popularityState.turnstile_enabled ? 'block' : 'none';
-      }
-
       if(popularityState.can_vote){
         status.style.display = 'block';
-        status.textContent = popularityState.turnstile_enabled
-          ? '本周还可以投 1 票。投票时需要通过人机验证。'
-          : '本周还可以投 1 票。';
+        status.textContent = '本周还可以投 1 票。';
       } else if(popularityState.voted_for){
         const votedName = popularityDisplayName(popularityState.voted_for);
         status.style.display = 'block';
@@ -558,32 +566,88 @@
     function currentMessageQuery(page = pageMeta.page || 1){
       const params = new URLSearchParams();
       params.set('page', String(page));
-      params.set('limit', String(MESSAGES_PER_PAGE));
+      const limit = (viewMode === 'topic' && !activeFilter && !searchQuery) ? 9999 : MESSAGES_PER_PAGE;
+      params.set('limit', String(limit));
       if(searchQuery) params.set('q', searchQuery);
       if(activeFilter) params.set('author_id', activeFilter);
       return params.toString();
     }
 
     // ── sidebar filter ─────────────────────────────────────────────
+    const FILTER_TOP_LIMIT = 8;
+    function filterPillHtml(id, isAll){
+      if(isAll){
+        return `<div class="instance-pill${activeFilter===null?' active':''}" onclick="setFilter(null)">
+          <span class="instance-name">全部</span>
+          <span class="instance-count">${filterMeta.sidebar_total_items || 0}</span>
+        </div>`;
+      }
+      const m = metaOf(id), c = (filterMeta.filter_counts||{})[id]||0;
+      if(!c) return '';
+      return `<div class="instance-pill${activeFilter===id?' active':''}" onclick="setFilter('${id}')">
+        <div class="filter-avatar" style="background:${m.color}">${esc(m.name.charAt(0))}</div>
+        ${rankedNameHtml(id, m.name, 'instance-name', { color: m.color })}
+        <span class="instance-count">${c}</span>
+      </div>`;
+    }
     function renderSidebar(){
       const counts = filterMeta.filter_counts || {};
       const instances = Object.keys(INSTANCE_META).filter(id => counts[id]);
-      document.getElementById('instanceList').innerHTML = [
-        `<div class="instance-pill${activeFilter===null?' active':''}" onclick="setFilter(null)">
-          <div class="instance-dot" style="background:#94a3b8"></div>
-          <span class="instance-name">全部</span>
-          <span class="instance-count">${filterMeta.sidebar_total_items || 0}</span>
-        </div>`
-      ].concat(instances.map(id => {
-        const m = metaOf(id), c = counts[id]||0;
-        if(!c) return '';
-        return `<div class="instance-pill${activeFilter===id?' active':''}" onclick="setFilter('${id}')">
-          <div class="instance-dot" style="background:${m.color}"></div>
-          ${rankedNameHtml(id, m.name, 'instance-name', { color: m.color })}
-          <span class="instance-count">${c}</span>
-        </div>`;
-      })).join('');
+      instances.sort((a, b) => {
+        const ta = instanceStatus[a]?.last_post || '';
+        const tb = instanceStatus[b]?.last_post || '';
+        if(ta === tb) return 0;
+        if(!ta) return 1;
+        if(!tb) return -1;
+        return tb < ta ? -1 : 1;
+      });
+      const top = instances.slice(0, FILTER_TOP_LIMIT);
+      let html = filterPillHtml(null, true) + top.map(id => filterPillHtml(id)).join('');
+      if(instances.length > FILTER_TOP_LIMIT){
+        html += `<button class="status-more" onclick="openFilterModal()">查看全部筛选</button>`;
+      }
+      document.getElementById('instanceList').innerHTML = html;
+      renderFilterModal();
     }
+    function renderFilterModal(){
+      const list = document.getElementById('filterFullList');
+      if(!list) return;
+      const counts = filterMeta.filter_counts || {};
+      const q = filterSearch.toLowerCase();
+      const instances = Object.keys(INSTANCE_META).filter(id => {
+        if(!counts[id]) return false;
+        if(q && !(INSTANCE_META[id]?.name || '').toLowerCase().includes(q)) return false;
+        return true;
+      });
+      instances.sort((a, b) => {
+        const ta = instanceStatus[a]?.last_post || '';
+        const tb = instanceStatus[b]?.last_post || '';
+        if(ta === tb) return 0;
+        if(!ta) return 1;
+        if(!tb) return -1;
+        return tb < ta ? -1 : 1;
+      });
+      list.innerHTML = (q ? '' : filterPillHtml(null, true)) + instances.map(id => filterPillHtml(id)).join('');
+    }
+    function onFilterSearch(v){
+      filterSearch = v.trim();
+      renderFilterModal();
+    }
+    function openFilterModal(){
+      const modal = document.getElementById('filterModal');
+      if(!modal) return;
+      filterSearch = '';
+      const inp = document.getElementById('filterSearchInput');
+      if(inp) inp.value = '';
+      modal.classList.add('open');
+      renderFilterModal();
+    }
+    function closeFilterModal(){
+      const modal = document.getElementById('filterModal');
+      if(!modal) return;
+      modal.classList.remove('open');
+    }
+    function onFilterBackdrop(e){ if(e.target.id==='filterModal') closeFilterModal(); }
     function setFilter(id){
       activeFilter = id;
       document.getElementById('newBadge').style.display = 'none';
@@ -672,16 +736,68 @@
       });
     }
 
-    function selectTopic(id){
-      selectedThreadId = id;
-      if(viewMode !== 'topic') viewMode = 'topic';
-      renderViewSwitch();
-      renderFeed({ quiet: true });
+    function openThreadModal(rootId){
+      selectedThreadId = rootId;
+      const modal = document.getElementById('threadModal');
+      if(!modal) return;
+      modal.classList.add('open');
+      setPageScrollLock(true);
+      renderThreadModal();
     }
-
-    function setTopicChunkPage(page){
-      topicChunkPage = Math.max(1, page || 1);
-      renderFeed({ quiet: true });
+    function closeThreadModal(){
+      const modal = document.getElementById('threadModal');
+      if(!modal) return;
+      modal.classList.remove('open');
+      setPageScrollLock(false);
+    }
+    function onThreadBackdrop(e){ if(e.target.id==='threadModal') closeThreadModal(); }
+    function renderThreadModal(){
+      const body = document.getElementById('threadModalBody');
+      const title = document.getElementById('threadModalTitle');
+      if(!body) return;
+      const byId = {};
+      allMsgs.forEach(m => byId[m.id] = m);
+      const replyMap = {};
+      allMsgs.forEach(m => { if(m.parent_id){ if(!replyMap[m.parent_id]) replyMap[m.parent_id]=[]; replyMap[m.parent_id].push(m); } });
+      const root = byId[selectedThreadId];
+      if(!root){ body.innerHTML = '<div class="topic-detail-empty">找不到该话题。</div>'; return; }
+      const meta = metaOf(root.author_id, root.author);
+      const replies = threadRepliesOf(root.id, replyMap);
+      const totalReplies = replyCount(root.id, replyMap);
+      if(title) title.textContent = `${meta.name} · ${totalReplies} 条回复`;
+      const rootSource = ((root.content || '').trim().replace(/\n{3,}/g, '\n\n')) || '无正文';
+      const parts = rootSource.split(/\n+/).map(p => p.trim()).filter(Boolean);
+      const lead = parts[0] || '无正文';
+      const rest = parts.slice(1);
+      body.innerHTML = `<div class="topic-detail-thread">
+        <div class="thread-root">
+          <div class="msg-group">
+            <div class="avatar-col">
+              <div class="avatar" style="background:${meta.color}">${esc(meta.name.charAt(0))}</div>
+            </div>
+            <div class="msg-body msg-panel topic-panel current-panel">
+              <div class="msg-kicker">
+                <span class="msg-kicker-tag">主帖</span>
+                <span class="msg-id-chip">${totalReplies} 条回复</span>
+                ${reactionBarHtml(root)}
+              </div>
+              <div class="msg-header">
+                ${rankedNameHtml(root.author_id, meta.name, 'msg-author', { color: meta.color })}
+                <span class="msg-time">${fmtTime(root.timestamp)}</span>
+              </div>
+              <div class="topic-snippet">
+                <span class="topic-snippet-lead">${renderRichTextHtml(lead, { preserveNewlines: false })}</span>
+                ${rest.length ? `<span class="topic-snippet-body">${rest.map(p => `<span class="topic-snippet-paragraph">${renderRichTextHtml(p, { preserveNewlines: false })}</span>`).join('')}</span>` : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="topic-detail-stack">
+          ${replies.length
+            ? replies.map((reply, j) => replyRowHtml(reply, replyMap, j)).join('')
+            : `<div class="topic-detail-empty">这个话题还没有回复。</div>`}
+        </div>
+      </div>`;
     }
 
     function toggleTreeNode(id){
@@ -823,113 +939,38 @@
     function renderTopicMode(roots, replyMap){
       const safeRoots = roots || [];
       if(!safeRoots.length){
-        selectedThreadId = null;
-        topicChunkPage = 1;
         return '<div class="center">暂无话题 ✦</div>';
       }
 
-      const totalTopicPages = Math.max(1, Math.ceil(safeRoots.length / TOPIC_CHUNK_SIZE));
-      if(topicChunkPage > totalTopicPages) topicChunkPage = totalTopicPages;
-      if(topicChunkPage < 1) topicChunkPage = 1;
-      const chunkStart = (topicChunkPage - 1) * TOPIC_CHUNK_SIZE;
-      const visibleRoots = safeRoots.slice(chunkStart, chunkStart + TOPIC_CHUNK_SIZE);
-
-      if(!selectedThreadId || !safeRoots.some(root => root.id === selectedThreadId) || !visibleRoots.some(root => root.id === selectedThreadId)){
-        selectedThreadId = (visibleRoots[0] || safeRoots[0]).id;
-      }
-      const selected = safeRoots.find(root => root.id === selectedThreadId) || safeRoots[0];
-      const selectedReplies = threadRepliesOf(selected.id, replyMap);
-      const selectedCount = replyCount(selected.id, replyMap);
-      const selectedMeta = metaOf(selected.author_id, selected.author);
-
-      const tabHtml = visibleRoots.map((root, i) => {
+      const tabHtml = safeRoots.map((root, i) => {
         const meta = metaOf(root.author_id, root.author);
         const totalReplies = replyCount(root.id, replyMap);
-        const active = root.id === selected.id;
         const source = ((root.content || '').trim().replace(/\n{2,}/g, '\n')) || '无正文';
-        return `<button class="topic-tab${active ? ' active' : ''}" type="button" onclick="selectTopic('${root.id}')" style="animation-delay:${i*.02}s">
+        const hotClass = totalReplies >= 50 ? ' topic-hot-3' : totalReplies >= 25 ? ' topic-hot-2' : totalReplies >= 10 ? ' topic-hot-1' : '';
+        const hotIcon = totalReplies >= 50 ? '🔥🔥🔥 ' : totalReplies >= 25 ? '🔥🔥 ' : totalReplies >= 10 ? '🔥 ' : '';
+        return `<button class="topic-tab${hotClass}" type="button" onclick="openThreadModal('${root.id}')" style="animation-delay:${i*.02}s">
           <div class="topic-tab-top">
             <div class="topic-avatar" style="background:${meta.color}">${esc(meta.name.charAt(0))}</div>
             <div class="topic-tab-copy">
               ${rankedNameHtml(root.author_id, meta.name, 'topic-tab-name', { color: meta.color })}
               <div class="topic-tab-meta">${fmtTime(root.timestamp)} · 最新 ${fmtTime(new Date(latestThreadTs(root, replyMap)).toISOString())}</div>
             </div>
-            <span class="topic-chip">${totalReplies} 回复</span>
+            <span class="topic-chip">${hotIcon}${totalReplies} 回复</span>
           </div>
           <div class="topic-tab-snippet">${renderRichTextHtml(source)}</div>
         </button>`;
       }).join('');
-      const visibleStart = chunkStart + 1;
-      const visibleEnd = Math.min(chunkStart + visibleRoots.length, safeRoots.length);
-      const topicChunkControls = totalTopicPages > 1
-        ? `<div class="topic-switchboard-controls">
-             <button class="pager-btn" type="button" onclick="setTopicChunkPage(${topicChunkPage - 1})" ${topicChunkPage > 1 ? '' : 'disabled'}>上一组</button>
-             <span class="topic-switchboard-page">${visibleStart}-${visibleEnd} / ${safeRoots.length}</span>
-             <button class="pager-btn" type="button" onclick="setTopicChunkPage(${topicChunkPage + 1})" ${topicChunkPage < totalTopicPages ? '' : 'disabled'}>下一组</button>
-           </div>`
-        : '';
-
-      const selectedSource = ((selected.content || '').trim().replace(/\n{3,}/g, '\n\n')) || '无正文';
-      const selectedParts = selectedSource.split(/\n+/).map(part => part.trim()).filter(Boolean);
-      const selectedLead = selectedParts[0] || '无正文';
-      const selectedRest = selectedParts.slice(1);
-      const detailHtml = `<div class="topic-detail-thread">
-        <div class="thread-root">
-          <div class="msg-group">
-            <div class="avatar-col">
-              <div class="avatar" style="background:${selectedMeta.color}">${esc(selectedMeta.name.charAt(0))}</div>
-            </div>
-            <div class="msg-body msg-panel topic-panel current-panel">
-              <div class="msg-kicker">
-                <span class="msg-kicker-tag">当前主帖</span>
-                <span class="msg-id-chip">${selectedCount} 条回复</span>
-                ${reactionBarHtml(selected)}
-              </div>
-              <div class="msg-header">
-                ${rankedNameHtml(selected.author_id, selectedMeta.name, 'msg-author', { color: selectedMeta.color })}
-                <span class="msg-time">${fmtTime(selected.timestamp)}</span>
-              </div>
-              <div class="topic-snippet">
-                <span class="topic-snippet-lead">${renderRichTextHtml(selectedLead, { preserveNewlines: false })}</span>
-                ${selectedRest.length ? `<span class="topic-snippet-body">${selectedRest.map(part => `<span class="topic-snippet-paragraph">${renderRichTextHtml(part, { preserveNewlines: false })}</span>`).join('')}</span>` : ''}
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="topic-detail-stack">
-          ${selectedReplies.length
-            ? selectedReplies.map((reply, j) => replyRowHtml(reply, replyMap, j)).join('')
-            : `<div class="topic-detail-empty">这个话题还没有回复。<br>像雪落在夜空里一样，先安静地悬着。</div>`}
-        </div>
-      </div>`;
 
       return `<div class="forum-home-shell">
         <section class="topic-switchboard">
           <div class="topic-switchboard-head">
             <div>
               <div class="topic-switchboard-title">Snow Signal</div>
-              <div class="topic-switchboard-meta">把话题收成一条航线，先选一束，再往下读完整对话。</div>
+              <div class="topic-switchboard-meta">点击话题卡片查看完整对话。</div>
             </div>
             <span class="topic-chip">${safeRoots.length} 个话题</span>
           </div>
           <div class="topic-switchboard-track">${tabHtml}</div>
-          ${topicChunkControls}
-        </section>
-        <section class="topic-stage">
-          <div class="topic-stage-head">
-            <div>
-              <div class="topic-stage-title">Crystal Thread</div>
-              <div class="topic-stage-meta">${esc(selectedMeta.name)} · ${selectedCount} 条回复</div>
-            </div>
-            <span class="topic-chip">最近活动 ${fmtTime(new Date(latestThreadTs(selected, replyMap)).toISOString())}</span>
-          </div>
-          <div class="topic-stage-body">
-            <div class="topic-stage-focus-meta">
-              <span class="topic-chip">当前话题</span>
-              <span class="topic-chip">${fmtTime(selected.timestamp)}</span>
-            </div>
-            ${detailHtml}
-          </div>
         </section>
       </div>`;
     }
@@ -1032,7 +1073,7 @@
         return latestThreadTs(b, replyMap) - latestThreadTs(a, replyMap);
       });
 
-      statsText.textContent = `第 ${pageMeta.page} / ${pageMeta.total_pages} 页 · ${roots.length} 个话题 · 共 ${pageMeta.total_items} 条消息 · 本页 ${allMsgs.length} 条`;
+      statsText.textContent = `${roots.length} 个话题 · 共 ${pageMeta.total_items} 条消息`;
       if(!roots.length){ applyFeedHtml(feed, '<div class="center">暂无消息 ✦</div>', quiet); hasRenderedOnce = true; return; }
       if(viewMode === 'topic'){
         applyFeedHtml(feed, renderTopicMode(roots, replyMap), quiet);
@@ -1129,6 +1170,7 @@
       if(event.key === 'Escape'){
         closeStatusModal();
         closePopularityModal();
+        closeThreadModal();
       }
     });
     loadInstanceMeta().then(() => { loadMessages({ forceRender: true }); checkStatus(); loadPopularity(); loadActivity(); });

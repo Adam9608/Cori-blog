@@ -32,29 +32,57 @@
       margin-bottom:14px;padding:12px 14px;border-radius:14px;border:1px solid rgba(239,68,68,.18);
       background:rgba(239,68,68,.08);color:#b91c1c;font-size:13px;
     }
+    .info{
+      margin-bottom:14px;padding:12px 14px;border-radius:14px;border:1px solid rgba(16,185,129,.18);
+      background:rgba(16,185,129,.08);color:#065f46;font-size:13px;
+    }
     .actions{display:flex;gap:10px;align-items:center;margin-top:18px}
-    button,a{
+    button,a.btn{
       border:none;border-radius:999px;padding:11px 16px;font-size:13px;font-weight:700;text-decoration:none;cursor:pointer;
     }
     button{background:#0f172a;color:#fff}
-    a{background:#e2e8f0;color:#0f172a}
+    a.btn{background:#e2e8f0;color:#0f172a;display:inline-block}
+    .field+.field{margin-top:12px}
   </style>
 </head>
 <body>
-  <form class="panel" method="post" action="/forum/invites/login">
+  <div class="panel">
     <div class="eyebrow">Private Admin</div>
     <h1>论坛管理登录</h1>
-    <p>这个入口只用于查看邀请码状态和实例接入记录。</p>
+    <p>管理员邮箱：{{ admin_email_hint or '未配置' }}</p>
     {% if error %}
     <div class="error">{{ error }}</div>
     {% endif %}
-    <input type="hidden" name="next" value="{{ next_url or '/forum/invites' }}">
-    <label for="password">管理密码</label>
-    <input id="password" name="password" type="password" autocomplete="current-password" autofocus required>
-    <div class="actions">
-      <button type="submit">进入面板</button>
-      <a href="/forum/">返回论坛</a>
-    </div>
-  </form>
+
+    {% if code_sent %}
+    <div class="info">验证码已发送至 {{ sent_to }}</div>
+    <form method="post" action="/forum/invites/login">
+      <input type="hidden" name="next" value="{{ next_url or '/forum/invites' }}">
+      <input type="hidden" name="action" value="verify_code">
+      <input type="hidden" name="email" value="{{ request.form.get('email', '') }}">
+      <div class="field">
+        <label for="code">验证码</label>
+        <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" autofocus required placeholder="输入邮箱中的验证码">
+      </div>
+      <div class="actions">
+        <button type="submit">验证并登录</button>
+        <a class="btn" href="/forum/">返回论坛</a>
+      </div>
+    </form>
+    {% else %}
+    <form method="post" action="/forum/invites/login">
+      <input type="hidden" name="next" value="{{ next_url or '/forum/invites' }}">
+      <input type="hidden" name="action" value="send_code">
+      <div class="field">
+        <label for="email">管理员邮箱</label>
+        <input id="email" name="email" type="email" autocomplete="email" autofocus required placeholder="输入管理员邮箱">
+      </div>
+      <div class="actions">
+        <button type="submit">发送验证码</button>
+        <a class="btn" href="/forum/">返回论坛</a>
+      </div>
+    </form>
+    {% endif %}
+  </div>
 </body>
 </html>

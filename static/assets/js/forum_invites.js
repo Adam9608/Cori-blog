@@ -52,6 +52,13 @@
       `).join('');
     }
 
+    function renderVisitorStats(stats){
+      const el = id => document.getElementById(id);
+      el('vToday').textContent = stats.today ?? '-';
+      el('vWeek').textContent = stats.week ?? '-';
+      el('vTotal').textContent = stats.total ?? '-';
+    }
+
     function renderFilters(summary){
       const filters = [
         'active',
@@ -209,6 +216,7 @@
         renderSummary(window.__inviteSummary);
         renderFilters(window.__inviteSummary);
         renderRows(filteredItems());
+        renderVisitorStats(data.visitor_stats || {});
         document.getElementById('generatedAt').textContent = `最近生成视图：${fmtTime(data.generated_at)}`;
       }catch(err){
         errorBox.style.display = 'block';
