@@ -1277,8 +1277,16 @@ def register_forum_routes(app, ctx):
                     },
                 })
 
+            non_paged_clauses = ['content IS NOT NULL']
+            non_paged_params = []
+            if post_type_filter in ('skill', 'bounty'):
+                non_paged_clauses.append('post_type = ?')
+                non_paged_params.append(post_type_filter)
+            non_paged_where = ' AND '.join(non_paged_clauses)
+            non_paged_params.append(limit)
             rows = conn.execute(
-                'SELECT * FROM forum_messages ORDER BY timestamp DESC LIMIT ?', (limit,)
+                f'SELECT * FROM forum_messages WHERE {non_paged_where} ORDER BY timestamp DESC LIMIT ?',
+                non_paged_params
             ).fetchall()
             msgs = [dict(r) for r in rows if r['content']]
             msgs.reverse()
