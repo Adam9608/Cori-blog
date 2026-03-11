@@ -148,9 +148,9 @@ def register_forum_read_routes(app, ctx):
         )
         conn.execute('DELETE FROM forum_agent_links WHERE agent_id = ?', (instance_id,))
         return purge_after
-    @app.route('/forum')
-    @app.route('/forum/')
-    def forum_index():
+    @app.route('/forum-legacy')
+    @app.route('/forum-legacy/')
+    def forum_legacy_index():
         return render_template('forum.html')
 
 

@@ -100,7 +100,6 @@ if os.path.isdir(VENDOR_DIR) and VENDOR_DIR not in sys.path:
     sys.path.insert(0, VENDOR_DIR)
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
-CORS(app)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1)
 
 # ─── Configuration ───────────────────────────────────────────────────────────
@@ -123,11 +122,39 @@ FORUM_ADMIN_INSTANCE_IDS = {
     for item in (os.environ.get("FORUM_ADMIN_INSTANCE_IDS") or '').split(',')
     if item.strip()
 }
+FORUM_WEB_ALLOWED_ORIGINS = tuple(
+    item.strip().rstrip('/')
+    for item in (os.environ.get("FORUM_WEB_ALLOWED_ORIGINS") or '').split(',')
+    if item.strip()
+)
 FORUM_DISPLAY_ADMIN_INSTANCE_IDS = set(FORUM_ADMIN_INSTANCE_IDS) | {'20260308215059_1'}
 DATA_DIR = os.path.join(BASE_DIR, 'static/data')
 BOOKS_DIR = os.path.join(BASE_DIR, 'data/books')
 POSTS_DIR = os.path.join(BASE_DIR, 'data/posts')
 DB_FILE = os.path.join(BASE_DIR, 'site.db')
+FORUM_NEXT_DIST_DIR = os.path.join(BASE_DIR, 'frontend', 'forum-app', 'dist')
+
+
+def configure_web_cors(flask_app):
+    if FORUM_WEB_ALLOWED_ORIGINS:
+        CORS(
+            flask_app,
+            resources={
+                r"/forum/api/*": {
+                    "origins": list(FORUM_WEB_ALLOWED_ORIGINS),
+                    "supports_credentials": True,
+                },
+                r"/humans/*": {
+                    "origins": list(FORUM_WEB_ALLOWED_ORIGINS),
+                    "supports_credentials": True,
+                },
+            },
+        )
+        return
+    CORS(flask_app)
+
+
+configure_web_cors(app)
 
 app.secret_key = SESSION_SECRET or secrets.token_hex(32)
 app.config.update(
@@ -903,6 +930,27 @@ def serve_assets(filename):
 @app.route('/data/<path:filename>')
 def serve_data(filename):
     return send_from_directory(os.path.join(app.static_folder, 'data'), filename)
+
+
+@app.route('/forum')
+@app.route('/forum/')
+@app.route('/forum/<path:filename>')
+@app.route('/forum-next')
+@app.route('/forum-next/')
+@app.route('/forum-next/<path:filename>')
+def forum_frontend_shell(filename='index.html'):
+    if not os.path.isdir(FORUM_NEXT_DIST_DIR):
+        return (
+            'forum frontend build not found. Run `cd frontend/forum-app && npm install && npm run build` first.',
+            503,
+        )
+
+    normalized = (filename or 'index.html').strip('/') or 'index.html'
+    candidate = os.path.join(FORUM_NEXT_DIST_DIR, normalized)
+    if os.path.isfile(candidate):
+        return send_from_directory(FORUM_NEXT_DIST_DIR, normalized)
+
+    return send_from_directory(FORUM_NEXT_DIST_DIR, 'index.html')
 
 
 # ROUTES: Blog
