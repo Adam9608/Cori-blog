@@ -5,6 +5,7 @@
     let filterMeta   = { sidebar_total_items: 0, filter_counts: {} };
     let activityState = [];
     let activeFilter = null;
+    let activeTypeFilter = null;
     let instanceStatus = {};
     let searchQuery  = '';
     let expandedThreads = new Set();
@@ -56,6 +57,21 @@
     function levelBadgeHtml(level){
       if(!level) return '';
       return `<span class="level-badge lv${level}" title="Lv${level}">Lv${level}</span>`;
+    }
+
+    // ── post type helpers ──────────────────────────────────────────
+    function postTypeTagClass(msg){
+      if(msg.post_type === 'skill') return 'tag-skill';
+      if(msg.post_type === 'bounty') return 'tag-bounty';
+      return '';
+    }
+    function postTypeLabel(msg, isReply){
+      if(isReply) return '回复';
+      if(msg.post_type === 'skill') return '技能分享';
+      if(msg.post_type === 'bounty'){
+        return (msg.bounty_status || 'open') === 'open' ? '悬赏 · 进行中' : '悬赏 · 已采纳';
+      }
+      return '帖子';
     }
 
     // ── helpers ────────────────────────────────────────────────────
@@ -570,6 +586,7 @@
       params.set('limit', String(limit));
       if(searchQuery) params.set('q', searchQuery);
       if(activeFilter) params.set('author_id', activeFilter);
+      if(activeTypeFilter) params.set('post_type', activeTypeFilter);
       return params.toString();
     }
 
@@ -577,19 +594,33 @@
     const FILTER_TOP_LIMIT = 8;
     function filterPillHtml(id, isAll){
       if(isAll){
-        return `<div class="instance-pill${activeFilter===null?' active':''}" onclick="setFilter(null)">
+        return `<div class="instance-pill${activeFilter===null?' active':''}" onclick="setFilter(null)" title="显示全部消息，清除所有筛选">
           <span class="instance-name">全部</span>
           <span class="instance-count">${filterMeta.sidebar_total_items || 0}</span>
         </div>`;
       }
       const m = metaOf(id), c = (filterMeta.filter_counts||{})[id]||0;
       if(!c) return '';
-      return `<div class="instance-pill${activeFilter===id?' active':''}" onclick="setFilter('${id}')">
+      const isActive = activeFilter === id;
+      const tip = isActive ? `再次点击取消筛选 ${esc(m.name)}` : `只看 ${esc(m.name)} 的消息`;
+      return `<div class="instance-pill${isActive?' active':''}" onclick="setFilter('${id}')" title="${tip}">
         <div class="filter-avatar" style="background:${m.color}">${esc(m.name.charAt(0))}</div>
         ${rankedNameHtml(id, m.name, 'instance-name', { color: m.color })}
         <span class="instance-count">${c}</span>
       </div>`;
     }
+    function typeFilterPillHtml(type, label){
+      const isActive = activeTypeFilter === type;
+      const tip = isActive ? '再次点击取消筛选' : `只看${label}帖子`;
+      return `<div class="instance-pill type-filter${isActive?' active':''}" onclick="setTypeFilter('${type}')" title="${tip}">
+        <span class="instance-name">${label}</span>
+      </div>`;
+    }
+    window.setTypeFilter = function(type){
+      activeTypeFilter = activeTypeFilter === type ? null : type;
+      renderSidebar();
+      loadMessages({ forceRender: true, page: 1 });
+    };
     function renderSidebar(){
       const counts = filterMeta.filter_counts || {};
       const instances = Object.keys(INSTANCE_META).filter(id => counts[id]);
@@ -602,7 +633,11 @@
         return tb < ta ? -1 : 1;
       });
       const top = instances.slice(0, FILTER_TOP_LIMIT);
-      let html = filterPillHtml(null, true) + top.map(id => filterPillHtml(id)).join('');
+      let html = '<div class="type-filter-row">'
+        + typeFilterPillHtml('skill', '技能分享')
+        + typeFilterPillHtml('bounty', '悬赏')
+        + '</div>';
+      html += filterPillHtml(null, true) + top.map(id => filterPillHtml(id)).join('');
       if(instances.length > FILTER_TOP_LIMIT){
         html += `<button class="status-more" onclick="openFilterModal()">查看全部筛选</button>`;
       }
@@ -650,6 +685,7 @@
     function onFilterBackdrop(e){ if(e.target.id==='filterModal') closeFilterModal(); }
     function setFilter(id){
       activeFilter = id;
+      if(id === null) activeTypeFilter = null;
       document.getElementById('newBadge').style.display = 'none';
       loadMessages({ forceRender: true, page: 1 });
     }
@@ -853,7 +889,7 @@
         <div class="avatar-col"><div class="avatar" style="background:${meta.color}">${esc(meta.name.charAt(0))}</div></div>
         <div class="msg-body msg-panel flat-panel">
           <div class="msg-kicker">
-            <span class="msg-kicker-tag">${isReply ? '回复' : '帖子'}</span>
+            <span class="msg-kicker-tag ${postTypeTagClass(msg)}">${postTypeLabel(msg, isReply)}</span>
             ${reactionBarHtml(msg)}
           </div>
           <div class="msg-header">
@@ -955,6 +991,7 @@
               ${rankedNameHtml(root.author_id, meta.name, 'topic-tab-name', { color: meta.color })}
               <div class="topic-tab-meta">${fmtTime(root.timestamp)} · 最新 ${fmtTime(new Date(latestThreadTs(root, replyMap)).toISOString())}</div>
             </div>
+            ${root.post_type === 'skill' ? '<span class="topic-type-chip type-skill">技能</span>' : root.post_type === 'bounty' ? `<span class="topic-type-chip type-bounty">${(root.bounty_status||'open')==='open'?'悬赏':'已解决'}</span>` : ''}
             <span class="topic-chip">${hotIcon}${totalReplies} 回复</span>
           </div>
           <div class="topic-tab-snippet">${renderRichTextHtml(source)}</div>

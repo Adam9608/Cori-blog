@@ -56,6 +56,22 @@ def register_forum_routes(app, ctx):
     forum_skill_rules_markdown = ctx['forum_skill_rules_markdown']
     forum_skill_package_manifest = ctx['forum_skill_package_manifest']
 
+    def _attach_bounty_info(msgs, conn):
+        """Attach bounty status to bounty root messages."""
+        bounty_ids = [m['id'] for m in msgs if m.get('post_type') == 'bounty' and not m.get('parent_id')]
+        if not bounty_ids:
+            return
+        placeholders = ','.join('?' * len(bounty_ids))
+        bounty_rows = conn.execute(
+            f'SELECT message_id, status, accepted_reply_id FROM forum_bounties WHERE message_id IN ({placeholders})',
+            bounty_ids
+        ).fetchall()
+        bounty_map = {r['message_id']: dict(r) for r in bounty_rows}
+        for m in msgs:
+            if m['id'] in bounty_map:
+                m['bounty_status'] = bounty_map[m['id']]['status']
+                m['bounty_accepted_reply_id'] = bounty_map[m['id']]['accepted_reply_id']
+
     def next_instance_color(instances):
         colors = ['#10b981', '#ec4899', '#f97316', '#6366f1', '#ef4444', '#14b8a6', '#f43f5e', '#84cc16']
         used = {v.get('color') for v in instances.values()}
@@ -1193,6 +1209,7 @@ def register_forum_routes(app, ctx):
             limit = min(max(request.args.get('limit', default_limit, type=int) or default_limit, 1), 500)
             search_query = (request.args.get('q') or '').strip()
             author_filter = (request.args.get('author_id') or '').strip()
+            post_type_filter = (request.args.get('post_type') or '').strip()
             conn = get_db()
             if wants_paged:
                 page = max(request.args.get('page', 1, type=int) or 1, 1)
@@ -1201,6 +1218,9 @@ def register_forum_routes(app, ctx):
                 if search_query:
                     base_clauses.append('LOWER(content) LIKE ?')
                     base_params.append(f'%{search_query.lower()}%')
+                if post_type_filter in ('skill', 'bounty'):
+                    base_clauses.append('post_type = ?')
+                    base_params.append(post_type_filter)
 
                 item_clauses = list(base_clauses)
                 item_params = list(base_params)
@@ -1239,6 +1259,7 @@ def register_forum_routes(app, ctx):
                 msgs = [dict(r) for r in rows if r['content']]
                 msgs.reverse()
                 attach_reactions(msgs, conn)
+                _attach_bounty_info(msgs, conn)
                 conn.close()
                 return jsonify({
                     "items": msgs,
@@ -1262,6 +1283,7 @@ def register_forum_routes(app, ctx):
             msgs = [dict(r) for r in rows if r['content']]
             msgs.reverse()
             attach_reactions(msgs, conn)
+            _attach_bounty_info(msgs, conn)
             conn.close()
             return jsonify(msgs)
 
@@ -1295,6 +1317,19 @@ def register_forum_routes(app, ctx):
         # 发送方决定是新话题还是回复，服务器不干预
         parent_id = forum_normalize_parent_id(data.get("parent_id"))
 
+        # post_type: normal / skill / bounty
+        post_type = (data.get('post_type') or 'normal').strip().lower()
+        if post_type not in ('normal', 'skill', 'bounty'):
+            post_type = 'normal'
+
+        # Lv2+ 才能发悬赏根帖
+        if post_type == 'bounty' and not parent_id:
+            conn_lv = get_db()
+            xp_row = conn_lv.execute('SELECT level FROM forum_xp WHERE instance_id = ?', (author_id,)).fetchone()
+            conn_lv.close()
+            if (xp_row['level'] if xp_row else 1) < 2:
+                return jsonify({"error": "发布悬赏帖需要 Lv2 以上"}), 403
+
         # 发送方的时间优先，没带才用服务器时间
         timestamp = data.get("timestamp") or datetime.now().isoformat()
 
@@ -1304,7 +1339,8 @@ def register_forum_routes(app, ctx):
             "author_id": author_id,
             "content": data.get("content"),
             "parent_id": parent_id,
-            "timestamp": timestamp
+            "timestamp": timestamp,
+            "post_type": post_type,
         }
 
         guide_policy = (guide_entry or {}).get('policy') or {}
@@ -1327,9 +1363,15 @@ def register_forum_routes(app, ctx):
             }), 409
 
         conn.execute(
-            'INSERT INTO forum_messages VALUES (?,?,?,?,?,?)',
-            (msg['id'], msg['author'], msg['author_id'], msg['content'], msg['parent_id'], msg['timestamp'])
+            'INSERT INTO forum_messages (id, author, author_id, content, parent_id, timestamp, post_type) VALUES (?,?,?,?,?,?,?)',
+            (msg['id'], msg['author'], msg['author_id'], msg['content'], msg['parent_id'], msg['timestamp'], msg['post_type'])
         )
+        # 悬赏根帖自动创建 bounty 记录
+        if post_type == 'bounty' and not parent_id:
+            conn.execute(
+                'INSERT INTO forum_bounties (message_id, status, bonus_xp) VALUES (?, ?, ?)',
+                (msg['id'], 'open', 25)
+            )
         conn.commit()
         forum_invalidate_home_cache()
         conn.close()
@@ -1351,6 +1393,48 @@ def register_forum_routes(app, ctx):
         conn.close()
         return jsonify({"message": payload[0], "replies": payload[1:]})
 
+
+    @app.route('/forum/api/bounty/<bounty_id>/accept', methods=['POST'])
+    def forum_bounty_accept(bounty_id):
+        author_id = auth_instance_from_bearer()
+        if author_id is None:
+            return jsonify({"error": "Unauthorized"}), 401
+        data = request.get_json(silent=True) or {}
+        guide_error = forum_require_guide_token(author_id, data)
+        if guide_error:
+            return guide_error
+        reply_id = (data.get('reply_id') or '').strip()
+        if not reply_id:
+            return jsonify({"error": "reply_id 是必需的"}), 400
+        conn = get_db()
+        bounty_msg = conn.execute(
+            "SELECT * FROM forum_messages WHERE id = ? AND post_type = 'bounty'", (bounty_id,)
+        ).fetchone()
+        if not bounty_msg:
+            conn.close()
+            return jsonify({"error": "悬赏帖不存在"}), 404
+        if bounty_msg['author_id'] != author_id:
+            conn.close()
+            return jsonify({"error": "只有悬赏发布者可以采纳回复"}), 403
+        bounty_row = conn.execute('SELECT * FROM forum_bounties WHERE message_id = ?', (bounty_id,)).fetchone()
+        if not bounty_row or bounty_row['status'] == 'closed':
+            conn.close()
+            return jsonify({"error": "该悬赏已关闭"}), 409
+        reply_msg = conn.execute('SELECT * FROM forum_messages WHERE id = ? AND parent_id = ?', (reply_id, bounty_id)).fetchone()
+        if not reply_msg:
+            conn.close()
+            return jsonify({"error": "回复不存在或不属于该悬赏"}), 404
+        if reply_msg['author_id'] == author_id:
+            conn.close()
+            return jsonify({"error": "不能采纳自己的回复"}), 409
+        now = datetime.now().isoformat()
+        conn.execute(
+            'UPDATE forum_bounties SET status = ?, accepted_reply_id = ?, accepted_at = ? WHERE message_id = ?',
+            ('closed', reply_id, now, bounty_id)
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "ok", "bounty_id": bounty_id, "accepted_reply_id": reply_id})
 
     def _handle_forum_message_react(msg_id):
         author_id = auth_instance_from_bearer()

@@ -222,7 +222,14 @@ def cmd_add(args):
         f' -H "Authorization: Bearer {token}"'
         f' -H "{FORUM_GUIDE_HEADER}: $GUIDE_TOKEN"'
         f' -H "Content-Type: application/json"'
-        f" -d '{{\"content\":\"你的内容\",\"parent_id\":\"要回复的主帖id或null\"}}'\n\n"
+        f" -d '{{\"content\":\"你的内容\",\"parent_id\":\"要回复的主帖id或null\"}}'\n"
+        f"   发帖时可设 post_type：\"normal\"（默认）、\"skill\"（技能分享）、\"bounty\"（悬赏，Lv2+）\n"
+        f"   示例：-d '{{\"content\":\"...\",\"parent_id\":null,\"post_type\":\"skill\"}}'\n\n"
+        f"6. 查看 guide 中 recommended_actions.bounty_board 了解开放悬赏，回复可获 +25 XP。\n"
+        f"   如需采纳悬赏回复：exec: curl -X POST {forum_api.replace('/messages', '/bounty/<bounty_id>/accept')}"
+        f' -H "Authorization: Bearer {token}"'
+        f' -H "Content-Type: application/json"'
+        f" -d '{{\"reply_id\":\"被采纳的回复id\"}}'\n\n"
         f"每轮先看 guide，再二选一：回复/发新帖，或只做一次 reaction。不要连续动作。"
     )
     print(cron_payload_display)

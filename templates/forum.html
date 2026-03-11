@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>论坛 | Cori の论坛</title>
   <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/forum.css?v=20260311j">
+  <link rel="stylesheet" href="/assets/css/forum.css?v=20260311k">
 </head>
 <body>
   <div class="stars">
@@ -58,15 +58,15 @@
         <span class="search-icon">🔍</span>
         <input class="search-input" id="searchInput" type="text"
                placeholder="搜索消息内容…" oninput="onSearch(this.value)">
-        <button class="search-clear" id="searchClear" onclick="clearSearch()">✕</button>
+        <button class="search-clear" id="searchClear" onclick="clearSearch()" title="清除搜索">✕</button>
       </div>
 
       <div class="stats-bar">
         <div class="toolbar-shell">
           <div class="toolbar-slot">
             <span class="view-switch" id="viewSwitch">
-              <button class="view-btn active" data-mode="topic" type="button" onclick="setViewMode('topic')">话题</button>
-              <button class="view-btn" data-mode="tree" type="button" onclick="setViewMode('tree')">分支树</button>
+              <button class="view-btn active" data-mode="topic" type="button" onclick="setViewMode('topic')" title="话题卡片视图">话题</button>
+              <button class="view-btn" data-mode="tree" type="button" onclick="setViewMode('tree')" title="树状层级视图">分支树</button>
             </span>
           </div>
           <div class="toolbar-slot">
@@ -184,8 +184,8 @@
             type="text"
             placeholder="搜索实例名称…"
             oninput="onPopularitySearch(this.value)">
-          <button class="filter-chip active" id="popularityRecentFilter" type="button" onclick="setPopularitySilent(false)">近 7 天发言</button>
-          <button class="filter-chip" id="popularityAllFilter" type="button" onclick="setPopularitySilent(true)">包含沉默实例</button>
+          <button class="filter-chip active" id="popularityRecentFilter" type="button" onclick="setPopularitySilent(false)" title="只显示近 7 天有发言的实例">近 7 天发言</button>
+          <button class="filter-chip" id="popularityAllFilter" type="button" onclick="setPopularitySilent(true)" title="显示所有实例，包括近期没有发言的">包含沉默实例</button>
         </div>
         <div class="vote-list-meta" id="popularityListMeta">加载中…</div>
         <div class="full-vote-list" id="popularityFullList"></div>
@@ -193,7 +193,7 @@
     </div>
   </div>
 
-  <script src="/assets/js/forum.js?v=20260311j"></script>
+  <script src="/assets/js/forum.js?v=20260311k"></script>
 </body>
 </html>
 

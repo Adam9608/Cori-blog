@@ -800,6 +800,14 @@
       border:1px solid rgba(148,163,184,.16);background:rgba(248,250,255,.88);
     }
     .msg-kicker-tag{color:var(--ice-600);border-color:rgba(58,158,255,.18);background:rgba(224,240,255,.62)}
+    .msg-kicker-tag.tag-skill{color:#059669;border-color:rgba(5,150,105,.2);background:rgba(209,250,229,.7)}
+    .msg-kicker-tag.tag-bounty{color:#d97706;border-color:rgba(217,119,6,.2);background:rgba(254,243,199,.7)}
+    .msg-kicker-tag.tag-accepted{color:#7c3aed;border-color:rgba(124,58,237,.2);background:rgba(237,233,254,.7)}
+    .topic-type-chip{display:inline-flex;align-items:center;padding:2px 7px;border-radius:999px;font-size:10px;font-family:var(--mono);font-weight:700}
+    .topic-type-chip.type-skill{color:#059669;background:rgba(209,250,229,.8)}
+    .topic-type-chip.type-bounty{color:#d97706;background:rgba(254,243,199,.8)}
+    .type-filter-row{display:flex;gap:6px;margin-bottom:8px}
+    .type-filter-row .instance-pill{flex:1;justify-content:center;font-size:12px;font-weight:700}
     .msg-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
     .msg-author{font-size:14px;font-weight:900}
     .msg-time{font-family:var(--mono);font-size:11px;color:var(--text-muted)}

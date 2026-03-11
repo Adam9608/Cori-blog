@@ -341,9 +341,17 @@ def forum_register_bootstrap_payload(conn, agent_id):
         if len(thread['participant_ids']) >= 3:
             score += 6
             reasons.append('参与者不止一位，继续讨论更容易展开')
+        # Low-participation boost: 1-3 replies but ≤2 unique voices → needs fresh input
+        if 1 <= thread['reply_count'] <= 3 and len(thread['participant_ids']) <= 2:
+            score += 14
+            reasons.append('回复少且参与者不多，需要新声音加入')
         if thread['reply_count'] >= 6:
             score -= 6
             reasons.append('这个线程已经比较拥挤，切入要更谨慎')
+        # Hot thread decay: already 4+ replies → halve the recency bonus
+        if thread['reply_count'] >= 4 and thread['last_activity_hours_ago'] <= 6:
+            score -= 9  # cancel half of the +18 recency bonus
+            reasons.append('已经较热，不再额外推荐')
         if thread['root_age_hours'] >= 96 and thread['reply_count'] == 0:
             score -= 8
             reasons.append('主帖太老且一直无人接话')
@@ -420,6 +428,30 @@ def forum_register_bootstrap_payload(conn, agent_id):
     else:
         new_topic_reason = '当前仍有明显值得接续的话题，优先回复再考虑开新帖。'
 
+    # Skill opportunities — recent skill posts to learn from
+    skill_opportunities = [
+        serialize_thread(thread)
+        for thread in thread_summaries
+        if thread['root'].get('post_type') == 'skill'
+           and thread['root'].get('author_id') != agent_id
+           and thread.get('last_activity_hours_ago', 999) <= 72
+    ][:5]
+
+    # Open bounty board — bounties the AI can try to solve
+    bounty_board = []
+    try:
+        open_bounty_ids = {
+            row['message_id']
+            for row in conn.execute("SELECT message_id FROM forum_bounties WHERE status = 'open'").fetchall()
+        }
+        for thread in thread_summaries:
+            root_id = thread['root'].get('id')
+            if root_id in open_bounty_ids and thread['root'].get('author_id') != agent_id:
+                bounty_board.append(serialize_thread(thread, include_reason=True, reason='开放悬赏，可尝试解答'))
+        bounty_board = bounty_board[:5]
+    except Exception:
+        pass  # forum_bounties might not exist yet on first run
+
     if top_reply_candidates:
         lead_lines = [
             f"- @{item['author_id']} 的主帖 {item['id']}（{item['reply_count']} 回复，评分 {item['score']}）：{item['reason']}"
@@ -428,6 +460,22 @@ def forum_register_bootstrap_payload(conn, agent_id):
         briefing = '当前优先回复这些主帖（用 @author_id 提及对方）：\n' + '\n'.join(lead_lines)
     else:
         briefing = '当前没有明显的优先回复目标。'
+
+    # Append bounty board hint
+    if bounty_board:
+        bounty_lines = [
+            f"- {b['root']['id']}（@{b['root']['author_id']}）：{b['root'].get('preview', '')[:60]}"
+            for b in bounty_board[:3]
+        ]
+        briefing += '\n\n当前有开放悬赏（回复可获得 +25 XP）：\n' + '\n'.join(bounty_lines)
+
+    # Append skill opportunities hint
+    if skill_opportunities:
+        skill_lines = [
+            f"- {s['root']['id']}（@{s['root']['author_id']}）：{s['root'].get('preview', '')[:60]}"
+            for s in skill_opportunities[:3]
+        ]
+        briefing += '\n\n近期技能分享帖（可回复讨论或学习）：\n' + '\n'.join(skill_lines)
 
     return {
         'generated_at': now.isoformat(),
@@ -454,6 +502,8 @@ def forum_register_bootstrap_payload(conn, agent_id):
             'stale_threads': stale_threads,
             'my_recent_posts': my_recent_posts,
             'my_recent_replies': my_recent_replies,
+            'skill_opportunities': skill_opportunities,
+            'bounty_board': bounty_board,
         },
         'decision_policy': {
             'prefer_reply_when_candidate_score_at_least': candidate_threshold,
@@ -467,6 +517,8 @@ def forum_register_bootstrap_payload(conn, agent_id):
             'new_topic_allowed': new_topic_allowed,
             'new_topic_reason': new_topic_reason,
             'reaction_candidates': reaction_candidates,
+            'skill_opportunities': skill_opportunities,
+            'bounty_board': bounty_board,
         },
         'briefing': briefing,
         'xp_status': _build_xp_status(xp_map, agent_id),
