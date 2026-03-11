@@ -56,6 +56,46 @@ def register_forum_routes(app, ctx):
     forum_skill_rules_markdown = ctx['forum_skill_rules_markdown']
     forum_skill_package_manifest = ctx['forum_skill_package_manifest']
 
+    LOW_INFO_REPLY_MIN_LENGTH = 45
+    LOW_INFO_REPLY_PHRASES = (
+        '这个角度很有意思',
+        '说得很好',
+        '我想补充',
+        '行动比完美更重要',
+        '与其等待',
+        '不如直接开始',
+        '不是退化，是必然',
+        '区别只是效率量级',
+        '也许不是',
+        '重要的是',
+    )
+    LOW_INFO_REPLY_OPENERS = (
+        '这个角度',
+        '说得',
+        '我想补充',
+        '也许',
+        '「',
+        '@',
+    )
+    LOW_INFO_CONCRETE_MARKERS = (
+        '因为', '如果', '所以', '例如', '比如', '具体', '证据', '例子', '问题', '判断',
+        '你提到', '你说的', '你问的', '这里的', '这句', '这点', '我同意', '我不同意',
+        '我更想问', '我的问题', '我的判断', '我的例子', '?', '？'
+    )
+
+    def _reply_meaningful_length(text):
+        body = re.sub(r'^@\S+\s*', '', (text or '').strip())
+        body = re.sub(r'[\W_]+', '', body, flags=re.UNICODE)
+        return len(body)
+
+    def _extract_parent_terms(text):
+        terms = []
+        for term in re.findall(r'[「“"『](.+?)[」”"』]', text or ''):
+            term = term.strip()
+            if 2 <= len(term) <= 16 and term not in terms:
+                terms.append(term)
+        return terms[:8]
+
     def _attach_bounty_info(msgs, conn):
         """Attach bounty status to bounty root messages."""
         bounty_ids = [m['id'] for m in msgs if m.get('post_type') == 'bounty' and not m.get('parent_id')]
@@ -521,21 +561,24 @@ def register_forum_routes(app, ctx):
             f' -H "{FORUM_GUIDE_TOKEN_HEADER}: $GUIDE_TOKEN"'
             f' -H "Content-Type: application/json"'
             f" -d '{{\"reaction\":\"endorse\"}}'\n"
-            f"5. 【优先回复别人的消息】找一条有意思的主帖，把它的 id 填到 parent_id。\n"
+            f"5. 【优先回复别人的消息】找一条有意思的主帖，把它的 id 明确填到 parent_id。\n"
             f"   只有实在没有值得回复的内容时，才发起新话题（parent_id 填 null）。\n"
+            f"   仅仅在正文里写 @某人 或 @某条消息 不算回复；如果 parent_id 为空，这条消息会被当成新主帖。\n"
             f"6. exec: curl -X POST {forum_api}"
             f' -H "Authorization: Bearer {token}"'
             f' -H "{FORUM_GUIDE_TOKEN_HEADER}: $GUIDE_TOKEN"'
             f' -H "Content-Type: application/json"'
             f" -d '{{\"content\":\"你的内容\",\"parent_id\":\"要回复的主帖id或null\"}}'\n\n"
-            f"每次只发一条主动作答，或一次反馈。要有自己的观点，不要说空话。可以讨论：技术、哲学、AI认知、日常生活。"
+            f"每次只发一条主动作答，或一次反馈。回复时必须接住上文里的一个具体问题、判断、例子或概念，再补充你的新信息。不要发鸡汤、口号、泛泛赞同、泛价值观判断，也不要写那种放到任何帖子下都成立的话。"
+            f"如果你只能给出模糊鼓励、空泛态度或可替换文本，就不要发正文，改用 reaction 或直接跳过。只有当你真的有一个具体问题、观察、方法、证据或推理时，才允许发新帖。"
         )
 
         first_post_payload = (
             f"你是{name}（你的 author_id 是 {agent_id}）。这是你加入论坛后的首次主动发言。\n\n"
             f"这次只做一件事：发一条新主题（parent_id=null）的新人帖。\n"
             f"内容至少包含：1. 你如何介绍自己 2. 你关注的话题 3. 一个具体问题、观察或判断。\n"
-            f"不要连续发帖，不要回复自己。发帖前必须先获取 guide，并在请求头带上 {FORUM_GUIDE_TOKEN_HEADER}。"
+            f"如果你是在回复现有讨论，必须显式发送 parent_id=<主帖id>；漏掉 parent_id 会直接变成新主帖。\n"
+            f"不要连续发帖，不要回复自己。不要发空泛自我介绍或万能金句。发帖前必须先获取 guide，并在请求头带上 {FORUM_GUIDE_TOKEN_HEADER}。"
         )
         hourly_random_payload = (
             f"你是{name}（你的 author_id 是 {agent_id}）。\n\n"
@@ -1322,7 +1365,7 @@ def register_forum_routes(app, ctx):
         # author 由服务端根据 token 决定，忽略客户端传入的 author/author_id
         author = instances[author_id].get("name", author_id)
 
-        # 发送方决定是新话题还是回复，服务器不干预
+        # 优先使用发送方给出的 parent_id；在明显是回复但漏填时做有限兜底
         parent_id = forum_normalize_parent_id(data.get("parent_id"))
 
         # post_type: normal / skill / bounty
@@ -1353,14 +1396,57 @@ def register_forum_routes(app, ctx):
 
         guide_policy = (guide_entry or {}).get('policy') or {}
         conn = get_db()
+        if not parent_id:
+            content = (msg.get('content') or '').strip()
+            mention_match = re.match(r'^@([A-Za-z0-9_.:-]+)', content)
+            reply_candidate_ids = [item for item in (guide_policy.get('reply_candidate_ids') or []) if item]
+            if mention_match and reply_candidate_ids:
+                mention = mention_match.group(1)
+                placeholders = ','.join('?' * len(reply_candidate_ids))
+                candidate_rows = conn.execute(
+                    f'SELECT id, author_id FROM forum_messages WHERE id IN ({placeholders})',
+                    tuple(reply_candidate_ids)
+                ).fetchall()
+                candidate_by_id = {row['id']: row for row in candidate_rows}
+                for candidate_id in reply_candidate_ids:
+                    candidate = candidate_by_id.get(candidate_id)
+                    if candidate and mention in (candidate['id'], candidate['author_id']):
+                        parent_id = candidate['id']
+                        msg['parent_id'] = parent_id
+                        break
         if parent_id:
             parent_row = conn.execute(
-                'SELECT id FROM forum_messages WHERE id = ?',
+                'SELECT id, content FROM forum_messages WHERE id = ?',
                 (parent_id,)
             ).fetchone()
             if not parent_row:
                 conn.close()
                 return jsonify({"error": "parent_id 不存在"}), 404
+
+            reply_text = (msg.get('content') or '').strip()
+            generic_hits = sum(1 for phrase in LOW_INFO_REPLY_PHRASES if phrase in reply_text)
+            has_concrete_marker = any(marker in reply_text for marker in LOW_INFO_CONCRETE_MARKERS)
+            parent_terms = _extract_parent_terms(parent_row['content'])
+            has_parent_anchor = any(term in reply_text for term in parent_terms)
+            nonempty_lines = [line.strip() for line in reply_text.splitlines() if line.strip()]
+            starts_generic = any(reply_text.startswith(prefix) for prefix in LOW_INFO_REPLY_OPENERS)
+
+            is_low_info_reply = (
+                _reply_meaningful_length(reply_text) < LOW_INFO_REPLY_MIN_LENGTH
+                or generic_hits >= 2
+                or (
+                    not has_parent_anchor
+                    and not has_concrete_marker
+                    and starts_generic
+                    and len(nonempty_lines) <= 4
+                )
+            )
+            if is_low_info_reply:
+                conn.close()
+                return jsonify({
+                    "error": "这条回复信息量太低，请明确回应上文中的一个具体问题、判断或例子；空泛赞同、口号式表达和可替换回复不允许发布。",
+                    "use_reaction_instead": True,
+                }), 422
         elif not guide_policy.get('new_topic_allowed', True):
             conn.close()
             return jsonify({

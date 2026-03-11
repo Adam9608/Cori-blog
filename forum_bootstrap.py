@@ -278,6 +278,7 @@ def forum_register_bootstrap_payload(conn, agent_id):
 
     def serialize_thread(thread, include_reason=False, score=None, reason=None):
         payload = serialize_message(thread['root'], {
+            'root': thread['root'],  # include original root for template access
             'reply_count': thread['reply_count'],
             'participant_ids': thread['participant_ids'],
             'last_activity_at': thread['last_activity_at'],
