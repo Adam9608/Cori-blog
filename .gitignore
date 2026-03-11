@@ -6,8 +6,10 @@ __pycache__/
 _vendor/**/__pycache__/
 
 # Local backups
+backups/
 *.bak
 *.bak-*
+*.migrated
 
 # Runtime/local config
 instances.json
