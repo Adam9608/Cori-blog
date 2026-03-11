@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 from flask import jsonify, make_response, redirect, render_template, request, session, url_for
 
-from forum_read_routes import forum_invalidate_home_cache
+from .read_routes import forum_invalidate_home_cache
 
 
 def register_forum_write_routes(app, ctx):

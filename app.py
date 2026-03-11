@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 from email.message import EmailMessage
 from functools import wraps
 
-from humans_core import (
+from humans.core import (
     configure_humans_core,
     forum_clear_human_session,
     forum_current_human_id,
@@ -42,7 +42,7 @@ from humans_core import (
     normalize_human_email,
     safe_humans_next_url,
 )
-from forum_core import (
+from forum.core import (
     FORUM_REGISTER_PLACEHOLDER_NAMES,
     attach_reactions,
     auth_instance_from_bearer,
@@ -74,7 +74,7 @@ from forum_core import (
     safe_next_url,
     save_invite,
 )
-from forum_bootstrap import (
+from forum.bootstrap import (
     configure_forum_bootstrap,
     forum_guide_payload,
     forum_guide_policy_snapshot,
@@ -83,7 +83,7 @@ from forum_bootstrap import (
     forum_require_guide_token,
     forum_require_guide_token_entry,
 )
-from db_support import (
+from core.db_support import (
     backfill_instance_token_hashes,
     configure_db_support,
     get_db,
@@ -875,8 +875,8 @@ configure_humans_core(
     invite_category_of=invite_category_of,
 )
 
-from humans_routes import register_humans_routes
-from forum_routes import register_forum_routes
+from humans.routes import register_humans_routes
+from forum.routes import register_forum_routes
 
 register_humans_routes(app, globals())
 register_forum_routes(app, globals())

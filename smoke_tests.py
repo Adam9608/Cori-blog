@@ -7,8 +7,8 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import app as app_module
-import db_support
-import humans_core
+from core import db_support
+from humans import core as humans_core
 
 
 class CoriForumSmokeTests(unittest.TestCase):
