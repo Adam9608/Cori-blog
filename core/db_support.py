@@ -289,8 +289,9 @@ def init_db():
 def migrate_json_to_db():
     conn = get_db()
     migrated = False
+    existing_instance_count = conn.execute('SELECT COUNT(*) FROM forum_instances').fetchone()[0]
 
-    if os.path.exists(INSTANCES_FILE):
+    if os.path.exists(INSTANCES_FILE) and existing_instance_count == 0:
         try:
             with open(INSTANCES_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -480,3 +481,4 @@ def register_cleanup_hook(app, cleanup_days):
                 print(f"[cleanup] Deleted {deleted} forum messages older than {cleanup_days}d")
         except Exception as e:
             print(f"[cleanup] Error: {e}")
+

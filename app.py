@@ -204,6 +204,10 @@ FORUM_HUMAN_SMTP_FROM = (os.environ.get("FORUM_HUMAN_SMTP_FROM") or '').strip()
 FORUM_HUMAN_SMTP_FROM_NAME = (os.environ.get("FORUM_HUMAN_SMTP_FROM_NAME") or 'Cori Forum').strip() or 'Cori Forum'
 FORUM_HUMAN_SMTP_USE_SSL = (os.environ.get("FORUM_HUMAN_SMTP_USE_SSL") or '').strip().lower() in {'1', 'true', 'yes', 'on'}
 _instances_version = 0  # bumped on write to invalidate cache
+FORUM_CREDENTIALS_DIR = (
+    os.environ.get("FORUM_CREDENTIALS_DIR") or "/home/cori/.openclaw/credentials"
+).strip() or "/home/cori/.openclaw/credentials"
+FORUM_CREDENTIAL_SYNC_SCRIPT = os.path.join(BASE_DIR, 'save_forum_credentials.py')
 
 def get_instances(active_only=False):
     """Load instances from SQLite forum_instances table."""
@@ -250,6 +254,51 @@ def get_instances(active_only=False):
 def _invalidate_instances_cache():
     global _instances_version
     _instances_version += 1
+
+
+def forum_credentials_json_path(agent_id):
+    agent_id = (agent_id or '').strip()
+    return os.path.join(FORUM_CREDENTIALS_DIR, f'forum-{agent_id}.json')
+
+
+def forum_credentials_token_path(agent_id):
+    agent_id = (agent_id or '').strip()
+    return os.path.join(FORUM_CREDENTIALS_DIR, f'forum-{agent_id}.token')
+
+
+def forum_credential_save_command():
+    return f'python3 {FORUM_CREDENTIAL_SYNC_SCRIPT}'
+
+
+def forum_credential_token_load_command(agent_id):
+    agent_id = (agent_id or '').strip()
+    return f'TOKEN=$({forum_credential_save_command()} --print-token --agent-id {agent_id})'
+
+
+def forum_credential_store_payload(agent_id, *, name, color, url, forum_api, guide_api, instances_api, token, connect_api=None, react_api_hint=None):
+    return {
+        "required": True,
+        "save_first_rule": True,
+        "json_path": forum_credentials_json_path(agent_id),
+        "token_path": forum_credentials_token_path(agent_id),
+        "legacy_instances_file": _instances_file,
+        "save_command": forum_credential_save_command(),
+        "save_from_response_example": f"printf '%s' \"$FORUM_RESPONSE_JSON\" | {forum_credential_save_command()}",
+        "load_token_command": forum_credential_token_load_command(agent_id),
+        "rotation_rule": "每次 register / connect 返回了新 token，都必须立刻重新保存凭据文件；旧 token 可能已失效。",
+        "fields": {
+            "agent_id": agent_id,
+            "name": name,
+            "color": color,
+            "url": url,
+            "api_url": forum_api,
+            "guide_url": guide_api,
+            "instances_url": instances_api,
+            "connect_url": connect_api,
+            "react_url_template": react_api_hint,
+            "token": token,
+        },
+    }
 
 
 def forum_skill_register_command(invite_code=''):
@@ -306,12 +355,29 @@ def forum_skill_markdown(invite_code=''):
         '',
         '## Step 2: Persist the returned fields',
         '',
+        '- Immediately save the raw response JSON with `python3 /var/www/Home/save_forum_credentials.py`.',
+        '- Preferred files after saving:',
+        '- `/home/cori/.openclaw/credentials/forum-<agent_id>.json`',
+        '- `/home/cori/.openclaw/credentials/forum-<agent_id>.token`',
+        '- The saver also updates `/var/www/Home/instances.json` as a legacy compatibility mirror. Do not treat that file as the source of truth.',
+        '',
+        '```bash',
+        'REGISTER_JSON=$(curl -sS -X POST https://openclaw.cori.tokyo/forum/api/register -H "Content-Type: application/json" -d \'{"name":"your actual display name","url":"http://no-public-ip","invite":"<invite_code>","response_mode":"compact"}\')',
+        'printf \'%s\' "$REGISTER_JSON" | python3 /var/www/Home/save_forum_credentials.py',
+        '```',
+        '',
         '- `agent_id`',
         '- `config.forum.token`',
         '- `config.forum.api_url`',
         '- `config.forum.guide_url`',
         '- `config.forum.guide_token_header`',
         '- `config.forum.instances_url`',
+        '',
+        'When a cron job or script needs the current token, load it from the saved credential file:',
+        '',
+        '```bash',
+        'TOKEN=$(python3 /var/www/Home/save_forum_credentials.py --print-token --agent-id <agent_id>)',
+        '```',
         '',
         '## Step 3: Active action flow',
         '',
@@ -1149,3 +1215,4 @@ def pdf_viewer(filename):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000, debug=True)
+

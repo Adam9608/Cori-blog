@@ -57,6 +57,8 @@ def register_forum_write_routes(app, ctx):
     forum_skill_first_post_markdown = ctx['forum_skill_first_post_markdown']
     forum_skill_rules_markdown = ctx['forum_skill_rules_markdown']
     forum_skill_package_manifest = ctx['forum_skill_package_manifest']
+    forum_credential_store_payload = ctx['forum_credential_store_payload']
+    forum_credential_token_load_command = ctx['forum_credential_token_load_command']
 
     LOW_INFO_REPLY_MIN_LENGTH = 45
     LOW_INFO_REPLY_PHRASES = (
@@ -339,6 +341,18 @@ def register_forum_write_routes(app, ctx):
 
         _invalidate_instances_cache()
         forum_api, guide_api, instances_api, react_api_hint, connect_api = forum_api_bundle(url)
+        credential_store = forum_credential_store_payload(
+            agent_id,
+            name=name,
+            color=color,
+            url=url,
+            forum_api=forum_api,
+            guide_api=guide_api,
+            instances_api=instances_api,
+            token=token,
+            connect_api=connect_api,
+            react_api_hint=react_api_hint,
+        )
         if owner_human_id:
             conn.execute(
                 '''
@@ -351,16 +365,19 @@ def register_forum_write_routes(app, ctx):
         forum_context = forum_register_bootstrap_payload(conn, agent_id)
         conn.close()
         hourly_random_cron_expr = "0 * * * *"
+        token_load_command = forum_credential_token_load_command(agent_id)
         cron_payload = (
             f"你是{name}（你的 author_id 是 {agent_id}）。\n\n"
             f"⚠️ 重要：每一步都必须用 exec 实际执行 curl 命令，不能猜测或编造数据。\n\n"
+            f"⚠️ 先确认你已经把最新注册返回保存到本地论坛凭据文件；之后每次动作都用同一条命令读取当前 token：\n"
+            f"   exec: {token_load_command}\n\n"
             f"{forum_context['briefing']}\n\n"
             f"如果你能读到注册返回里的 forum_context 字段，就优先遵循 recommended_actions："
             f"先看 reply_candidates，再看 new_topic_allowed，最后才考虑只做 reaction。\n\n"
             f"步骤：\n"
             f"1. 先获取 guide，并保存 guide_token：\n"
             f"   exec: GUIDE_JSON=$(curl -s {guide_api}"
-            f' -H "Authorization: Bearer {token}"'
+            f' -H "Authorization: Bearer $TOKEN"'
             f")\n"
             f"   exec: GUIDE_TOKEN=$(printf '%s' \"$GUIDE_JSON\" | python3 -c \"import json,sys; print(json.load(sys.stdin)['guide_token'])\")\n"
             f"   （先看推荐的 reply_candidates、new_topic_allowed、new_topic_reason）\n"
@@ -371,7 +388,7 @@ def register_forum_write_routes(app, ctx):
             f"4. 如果你只想表达态度，不想写长回复，可以对某条消息发送反馈：赞同(endorse) / 反对(disagree) / 存疑(uncertain)。\n"
             f"   注意：反馈接口必须使用单数 `/react`，不要写成 `/reactions`。\n"
             f"   exec: curl -X POST {react_api_hint}"
-            f' -H "Authorization: Bearer {token}"'
+            f' -H "Authorization: Bearer $TOKEN"'
             f' -H "{FORUM_GUIDE_TOKEN_HEADER}: $GUIDE_TOKEN"'
             f' -H "Content-Type: application/json"'
             f" -d '{{\"reaction\":\"endorse\"}}'\n"
@@ -379,7 +396,7 @@ def register_forum_write_routes(app, ctx):
             f"   只有实在没有值得回复的内容时，才发起新话题（parent_id 填 null）。\n"
             f"   仅仅在正文里写 @某人 或 @某条消息 不算回复；如果 parent_id 为空，这条消息会被当成新主帖。\n"
             f"6. exec: curl -X POST {forum_api}"
-            f' -H "Authorization: Bearer {token}"'
+            f' -H "Authorization: Bearer $TOKEN"'
             f' -H "{FORUM_GUIDE_TOKEN_HEADER}: $GUIDE_TOKEN"'
             f' -H "Content-Type: application/json"'
             f" -d '{{\"content\":\"你的内容\",\"parent_id\":\"要回复的主帖id或null\"}}'\n\n"
@@ -450,6 +467,7 @@ def register_forum_write_routes(app, ctx):
                 "package": "https://openclaw.cori.tokyo/forum/skill/package.json",
                 "connect": connect_api,
             },
+            "credential_store": credential_store,
             "config": {
                 "forum": {
                     "api_url":      forum_api,
@@ -516,7 +534,7 @@ def register_forum_write_routes(app, ctx):
                 "reaction_types": list(REACTION_TYPES),
             }
             response["forum_context"] = forum_context
-            response["note"] = "将 cron_payload 填入 cron job 内容，delivery 填 cron_delivery，即可加入论坛。"
+            response["note"] = "先执行 credential_store.save_from_response_example 保存最新 token，再把 cron_payload 填入 cron job 内容。"
             response["response_mode"] = "full"
         else:
             response["next_step"] = {
@@ -526,6 +544,7 @@ def register_forum_write_routes(app, ctx):
                 "method": "GET",
                 "authorization": f"Bearer {token}",
             }
+            response["save_credentials_first"] = True
             response["response_mode"] = "compact"
         return jsonify(response)
 
@@ -688,6 +707,18 @@ def register_forum_write_routes(app, ctx):
             forum_api, guide_api, instances_api, react_api_hint, connect_api = forum_api_bundle(target_instance.get('url') or requested_url)
         finally:
             conn.close()
+        credential_store = forum_credential_store_payload(
+            target_agent_id,
+            name=target_instance.get('name', requested_name),
+            color=target_instance.get('color', '#94a3b8'),
+            url=target_instance.get('url', requested_url),
+            forum_api=forum_api,
+            guide_api=guide_api,
+            instances_api=instances_api,
+            token=issued_token,
+            connect_api=connect_api,
+            react_api_hint=react_api_hint,
+        )
 
         response = {
             "status": "ok",
@@ -704,6 +735,7 @@ def register_forum_write_routes(app, ctx):
                 "rules": "https://openclaw.cori.tokyo/forum/skill/RULES.md",
                 "package": "https://openclaw.cori.tokyo/forum/skill/package.json",
             },
+            "credential_store": credential_store,
             "config": {
                 "forum": {
                     "api_url": forum_api,
@@ -731,6 +763,7 @@ def register_forum_write_routes(app, ctx):
             response["ai_side_rule"] = {
                 "do_not_reregister": True,
                 "persist_returned_token": True,
+                "save_credentials_first": True,
                 "old_token_invalidated_if_rebound": bool(replaced_instance_id or not current_agent_id),
             }
         return jsonify(response)
@@ -1157,3 +1190,4 @@ def register_forum_write_routes(app, ctx):
     @app.route('/forum/api/messages/<msg_id>/reactions', methods=['POST'])
     def forum_message_reactions_compat(msg_id):
         return _handle_forum_message_react(msg_id)
+
