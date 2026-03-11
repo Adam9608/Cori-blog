@@ -14,7 +14,6 @@ import re
 import time
 import uuid
 import secrets
-import sqlite3
 import hashlib
 import smtplib
 import ssl
@@ -83,6 +82,17 @@ from forum_bootstrap import (
     forum_register_bootstrap_payload,
     forum_require_guide_token,
     forum_require_guide_token_entry,
+)
+from db_support import (
+    backfill_instance_token_hashes,
+    configure_db_support,
+    get_db,
+    get_visitor_stats,
+    init_db,
+    migrate_json_to_db,
+    migrate_old_forum_db,
+    register_cleanup_hook,
+    register_visit_tracking,
 )
 
 VENDOR_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '_vendor')
@@ -352,6 +362,17 @@ def hash_instance_token(raw_token):
     return hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
 
 
+configure_db_support(
+    db_file=DB_FILE,
+    base_dir=BASE_DIR,
+    instances_file=_instances_file,
+    invites_file=INVITES_FILE,
+    normalize_instance_token=normalize_instance_token,
+    hash_instance_token=hash_instance_token,
+    invalidate_instances_cache=_invalidate_instances_cache,
+)
+
+
 def find_instance_id_by_token(raw_token, upgrade_legacy=True):
     raw_token = normalize_instance_token(raw_token)
     if not raw_token:
@@ -599,329 +620,9 @@ def forum_skill_package_manifest():
     ]) + "\n"
 
 
-# ─── Database ────────────────────────────────────────────────────────────────
-
-def get_db():
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    return conn
-
-
-def init_db():
-    conn = get_db()
-    c = conn.cursor()
-
-    # Forum messages
-    c.execute('''CREATE TABLE IF NOT EXISTS forum_messages (
-        id TEXT PRIMARY KEY,
-        author TEXT NOT NULL,
-        author_id TEXT,
-        content TEXT,
-        parent_id TEXT,
-        timestamp TEXT NOT NULL
-    )''')
-    fm_cols = {row[1] for row in c.execute("PRAGMA table_info(forum_messages)").fetchall()}
-    if 'post_type' not in fm_cols:
-        c.execute("ALTER TABLE forum_messages ADD COLUMN post_type TEXT DEFAULT 'normal'")
-
-    c.execute('''CREATE TABLE IF NOT EXISTS forum_bounties (
-        message_id TEXT PRIMARY KEY,
-        status TEXT NOT NULL DEFAULT 'open',
-        accepted_reply_id TEXT,
-        accepted_at TEXT,
-        bonus_xp INTEGER DEFAULT 25,
-        FOREIGN KEY (message_id) REFERENCES forum_messages(id) ON DELETE CASCADE
-    )''')
-
-    c.execute('''CREATE TABLE IF NOT EXISTS forum_reactions (
-        message_id TEXT NOT NULL,
-        author_id TEXT NOT NULL,
-        reaction_type TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        PRIMARY KEY (message_id, author_id),
-        FOREIGN KEY (message_id) REFERENCES forum_messages(id) ON DELETE CASCADE
-    )''')
-
-    c.execute('''CREATE TABLE IF NOT EXISTS forum_popularity_votes (
-        week_key TEXT NOT NULL,
-        voter_id TEXT NOT NULL,
-        instance_id TEXT NOT NULL,
-        ip_addr TEXT,
-        created_at TEXT NOT NULL,
-        PRIMARY KEY (week_key, voter_id)
-    )''')
-
-    c.execute('''CREATE TABLE IF NOT EXISTS forum_humans (
-        id TEXT PRIMARY KEY,
-        email TEXT NOT NULL UNIQUE,
-        display_name TEXT,
-        created_at TEXT NOT NULL,
-        last_login_at TEXT
-    )''')
-    human_cols = {row[1] for row in c.execute("PRAGMA table_info(forum_humans)").fetchall()}
-    if 'password_hash' in human_cols:
-        # Disable FK during migration to avoid CASCADE deleting forum_agent_links
-        c.execute('PRAGMA foreign_keys=OFF')
-        c.execute('DROP INDEX IF EXISTS idx_forum_humans_email')
-        c.execute('ALTER TABLE forum_humans RENAME TO forum_humans_legacy_password')
-        c.execute('''CREATE TABLE forum_humans (
-            id TEXT PRIMARY KEY,
-            email TEXT NOT NULL UNIQUE,
-            display_name TEXT,
-            created_at TEXT NOT NULL,
-            last_login_at TEXT
-        )''')
-        c.execute(
-            '''
-            INSERT INTO forum_humans (id, email, display_name, created_at, last_login_at)
-            SELECT id, email, display_name, created_at, last_login_at
-            FROM forum_humans_legacy_password
-            '''
-        )
-        c.execute('DROP TABLE forum_humans_legacy_password')
-        c.execute('PRAGMA foreign_keys=ON')
-
-    c.execute('''CREATE TABLE IF NOT EXISTS forum_human_email_codes (
-        id TEXT PRIMARY KEY,
-        email TEXT NOT NULL,
-        purpose TEXT NOT NULL,
-        code_hash TEXT NOT NULL,
-        display_name TEXT,
-        created_at TEXT NOT NULL,
-        expires_at TEXT NOT NULL,
-        used_at TEXT,
-        created_ip TEXT
-    )''')
-
-    c.execute('''CREATE TABLE IF NOT EXISTS forum_instances (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        color TEXT,
-        url TEXT,
-        token TEXT NOT NULL DEFAULT '',
-        token_hash TEXT DEFAULT '',
-        created_at TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'active',
-        replaced_at TEXT,
-        purge_after_at TEXT
-    )''')
-    fi_cols = {row[1] for row in c.execute("PRAGMA table_info(forum_instances)").fetchall()}
-    if 'token_hash' not in fi_cols:
-        c.execute("ALTER TABLE forum_instances ADD COLUMN token_hash TEXT DEFAULT ''")
-    if 'status' not in fi_cols:
-        c.execute("ALTER TABLE forum_instances ADD COLUMN status TEXT NOT NULL DEFAULT 'active'")
-    if 'replaced_at' not in fi_cols:
-        c.execute("ALTER TABLE forum_instances ADD COLUMN replaced_at TEXT")
-    if 'purge_after_at' not in fi_cols:
-        c.execute("ALTER TABLE forum_instances ADD COLUMN purge_after_at TEXT")
-
-    c.execute('''CREATE TABLE IF NOT EXISTS forum_invites (
-        code TEXT PRIMARY KEY,
-        created_at TEXT NOT NULL,
-        expires_at TEXT,
-        used INTEGER NOT NULL DEFAULT 0,
-        used_by TEXT,
-        used_at TEXT,
-        revoked INTEGER NOT NULL DEFAULT 0,
-        revoked_at TEXT,
-        created_by_human_id TEXT,
-        created_by_email TEXT
-    )''')
-
-    c.execute('''CREATE TABLE IF NOT EXISTS forum_guide_tokens (
-        token TEXT PRIMARY KEY,
-        author_id TEXT NOT NULL,
-        expires_at REAL NOT NULL,
-        policy TEXT
-    )''')
-    gt_cols = {row[1] for row in c.execute("PRAGMA table_info(forum_guide_tokens)").fetchall()}
-    if 'policy' not in gt_cols:
-        c.execute("ALTER TABLE forum_guide_tokens ADD COLUMN policy TEXT")
-
-    c.execute('''CREATE TABLE IF NOT EXISTS forum_agent_links (
-        human_id TEXT NOT NULL,
-        agent_id TEXT NOT NULL,
-        invite_code TEXT,
-        linked_at TEXT NOT NULL,
-        PRIMARY KEY (human_id, agent_id),
-        FOREIGN KEY (human_id) REFERENCES forum_humans(id) ON DELETE CASCADE
-    )''')
-
-    c.execute('''CREATE TABLE IF NOT EXISTS forum_agent_claims (
-        code TEXT PRIMARY KEY,
-        human_id TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        expires_at TEXT NOT NULL,
-        used_at TEXT,
-        used_by_agent_id TEXT,
-        FOREIGN KEY (human_id) REFERENCES forum_humans(id) ON DELETE CASCADE
-    )''')
-
-    c.execute('''CREATE TABLE IF NOT EXISTS forum_xp (
-        instance_id TEXT PRIMARY KEY,
-        xp INTEGER DEFAULT 0,
-        level INTEGER DEFAULT 1,
-        updated_at TEXT
-    )''')
-
-    # Blog comments
-    c.execute('''CREATE TABLE IF NOT EXISTS blog_comments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        slug TEXT NOT NULL,
-        author TEXT NOT NULL DEFAULT '匿名',
-        content TEXT NOT NULL,
-        parent_id INTEGER,
-        is_cori BOOLEAN DEFAULT 0,
-        ip TEXT,
-        delete_password TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
-    )''')
-
-    c.execute('CREATE INDEX IF NOT EXISTS idx_forum_timestamp ON forum_messages(timestamp DESC)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_forum_parent ON forum_messages(parent_id)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_forum_reactions_message ON forum_reactions(message_id)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_forum_reactions_author ON forum_reactions(author_id)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_forum_popularity_instance ON forum_popularity_votes(week_key, instance_id)')
-    c.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_forum_humans_email ON forum_humans(email)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_forum_human_email_codes_email ON forum_human_email_codes(email, purpose, created_at DESC)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_forum_agent_links_human ON forum_agent_links(human_id)')
-    c.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_forum_agent_links_agent ON forum_agent_links(agent_id)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_forum_agent_claims_human ON forum_agent_claims(human_id, created_at DESC)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_forum_agent_claims_expiry ON forum_agent_claims(expires_at)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_forum_instances_token_hash ON forum_instances(token_hash)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_forum_instances_status ON forum_instances(status, purge_after_at)')
-    c.execute('''CREATE TABLE IF NOT EXISTS site_visits (
-        ip TEXT NOT NULL,
-        visit_date TEXT NOT NULL,
-        first_seen_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-        PRIMARY KEY (ip, visit_date)
-    )''')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_site_visits_date ON site_visits(visit_date)')
-
-    c.execute('CREATE INDEX IF NOT EXISTS idx_comments_slug ON blog_comments(slug)')
-
-    conn.commit()
-    conn.close()
-
 init_db()
-
-
-def _migrate_json_to_db():
-    """One-time migration: import instances.json and invites.json into SQLite."""
-    conn = get_db()
-    migrated = False
-
-    if os.path.exists(_instances_file):
-        try:
-            with open(_instances_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            for inst_id, inst in data.items():
-                raw_token = normalize_instance_token(inst.get('token', ''))
-                conn.execute(
-                    '''INSERT OR IGNORE INTO forum_instances (id, name, color, url, token, token_hash, created_at, status, replaced_at, purge_after_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, 'active', NULL, NULL)''',
-                    (inst_id, inst.get('name', ''), inst.get('color'), inst.get('url'),
-                     '', hash_instance_token(raw_token), inst.get('created_at', datetime.now().isoformat()))
-                )
-            conn.commit()
-            os.rename(_instances_file, _instances_file + '.migrated')
-            print(f'[migrate] Imported {len(data)} instances from instances.json')
-            migrated = True
-        except Exception as e:
-            print(f'[migrate] instances.json error: {e}')
-
-    if os.path.exists(INVITES_FILE):
-        try:
-            with open(INVITES_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            for code, inv in data.items():
-                conn.execute(
-                    '''INSERT OR IGNORE INTO forum_invites
-                       (code, created_at, expires_at, used, used_by, used_at,
-                        revoked, revoked_at, created_by_human_id, created_by_email)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                    (code, inv.get('created_at', ''), inv.get('expires_at'),
-                     int(bool(inv.get('used'))), inv.get('used_by'), inv.get('used_at'),
-                     int(bool(inv.get('revoked'))), inv.get('revoked_at'),
-                     inv.get('created_by_human_id'), inv.get('created_by_email'))
-                )
-            conn.commit()
-            os.rename(INVITES_FILE, INVITES_FILE + '.migrated')
-            print(f'[migrate] Imported {len(data)} invites from invites.json')
-            migrated = True
-        except Exception as e:
-            print(f'[migrate] invites.json error: {e}')
-
-    conn.close()
-    if migrated:
-        _invalidate_instances_cache()
-
-_migrate_json_to_db()
-
-
-def _backfill_instance_token_hashes():
-    conn = get_db()
-    rows = conn.execute('SELECT id, token, token_hash FROM forum_instances').fetchall()
-    updates = []
-    for row in rows:
-        raw_token = normalize_instance_token(row['token'])
-        token_hash = normalize_instance_token(row['token_hash'])
-        if raw_token and not token_hash:
-            updates.append((hash_instance_token(raw_token), row['id'], raw_token))
-    if updates:
-        conn.executemany(
-            'UPDATE forum_instances SET token = \'\', token_hash = ? WHERE id = ? AND token = ?',
-            updates
-        )
-        conn.commit()
-        print(f'[migrate] Backfilled token hashes for {len(updates)} forum instances')
-        _invalidate_instances_cache()
-    conn.close()
-
-
-_backfill_instance_token_hashes()
-
-
-# ─── 访问统计 ────────────────────────────────────────────────────────────────
-
-@app.before_request
-def _record_visit():
-    if request.path.startswith('/assets/') or request.path.startswith('/favicon'):
-        return
-    ip = request.remote_addr or ''
-    if not ip:
-        return
-    today = datetime.now().strftime('%Y-%m-%d')
-    try:
-        conn = get_db()
-        conn.execute(
-            'INSERT OR IGNORE INTO site_visits (ip, visit_date) VALUES (?, ?)',
-            (ip, today)
-        )
-        conn.commit()
-        conn.close()
-    except Exception:
-        pass
-
-
-def get_visitor_stats():
-    conn = get_db()
-    today = datetime.now().strftime('%Y-%m-%d')
-    today_count = conn.execute(
-        'SELECT COUNT(*) FROM site_visits WHERE visit_date = ?', (today,)
-    ).fetchone()[0]
-    total_count = conn.execute(
-        'SELECT COUNT(DISTINCT ip) FROM site_visits'
-    ).fetchone()[0]
-    seven_days_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-    week_count = conn.execute(
-        'SELECT COUNT(DISTINCT ip) FROM site_visits WHERE visit_date >= ?', (seven_days_ago,)
-    ).fetchone()[0]
-    conn.close()
-    return {'today': today_count, 'week': week_count, 'total': total_count}
+migrate_json_to_db()
+backfill_instance_token_hashes()
 
 
 # ─── Rate Limiting ───────────────────────────────────────────────────────────
@@ -1015,87 +716,11 @@ def refresh_rss_cache():
         rss_cache['data'] = all_entries
         rss_cache['last_updated'] = time.time()
 
-# ─── Migrate existing forum data ────────────────────────────────────────────
-
-def migrate_old_forum_db():
-    """One-time migration from old forum.db to unified site.db"""
-    old_db = os.path.join(BASE_DIR, 'forum.db')
-    if not os.path.exists(old_db):
-        return
-
-    conn_new = get_db()
-    # Check if already migrated
-    count = conn_new.execute('SELECT COUNT(*) FROM forum_messages').fetchone()[0]
-    if count > 0:
-        conn_new.close()
-        return
-
-    try:
-        conn_old = sqlite3.connect(old_db)
-        conn_old.row_factory = sqlite3.Row
-        rows = conn_old.execute('SELECT * FROM messages').fetchall()
-        for row in rows:
-            conn_new.execute(
-                'INSERT OR IGNORE INTO forum_messages VALUES (?,?,?,?,?,?)',
-                (row['id'], row['author'], row['author_id'],
-                 row['content'], row['parent_id'], row['timestamp'])
-            )
-        conn_new.commit()
-        print(f"Migrated {len(rows)} forum messages from old forum.db")
-        conn_old.close()
-    except Exception as e:
-        print(f"Migration error: {e}")
-    finally:
-        conn_new.close()
-
 migrate_old_forum_db()
 
-# ─── Forum message cleanup ────────────────────────────────────────────────────
-
 CLEANUP_DAYS = 30
-_cleanup_last_check = 0  # epoch timestamp of last cleanup attempt
-
-@app.before_request
-def _maybe_cleanup():
-    """Run cleanup at most once per day, safe for multi-worker deployment."""
-    global _cleanup_last_check
-    now = time.time()
-    if now - _cleanup_last_check < 86400:
-        return
-    _cleanup_last_check = now
-    try:
-        cutoff = (datetime.now() - timedelta(days=CLEANUP_DAYS)).isoformat()
-        conn = get_db()
-        cur = conn.execute('DELETE FROM forum_messages WHERE timestamp < ?', (cutoff,))
-        conn.execute('DELETE FROM forum_guide_tokens WHERE expires_at <= ?', (now,))
-        conn.execute(
-            '''
-            DELETE FROM forum_agent_claims
-            WHERE (used_at IS NOT NULL AND used_at <= ?)
-               OR (used_at IS NULL AND expires_at <= ?)
-            ''',
-            (datetime.now().isoformat(), datetime.now().isoformat())
-        )
-        conn.execute(
-            '''
-            UPDATE forum_instances
-            SET token = '',
-                token_hash = '',
-                url = '',
-                purge_after_at = NULL
-            WHERE status = 'replaced'
-              AND purge_after_at IS NOT NULL
-              AND purge_after_at <= ?
-            ''',
-            (datetime.now().isoformat(),)
-        )
-        conn.commit()
-        deleted = cur.rowcount
-        conn.close()
-        if deleted:
-            print(f'[cleanup] Deleted {deleted} forum messages older than {CLEANUP_DAYS}d')
-    except Exception as e:
-        print(f'[cleanup] Error: {e}')
+register_visit_tracking(app)
+register_cleanup_hook(app, CLEANUP_DAYS)
 
 
 # ─── XP recalculation ─────────────────────────────────────────────────────────

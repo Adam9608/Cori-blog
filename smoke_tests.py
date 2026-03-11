@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import app as app_module
+import db_support
 import humans_core
 
 
@@ -14,10 +15,12 @@ class CoriForumSmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.original_db_file = app_module.DB_FILE
+        cls.original_db_support_file = db_support.DB_FILE
         cls.temp_dir = tempfile.mkdtemp(prefix='cori-smoke-')
         cls.temp_db_file = os.path.join(cls.temp_dir, 'site.db')
         shutil.copy2(cls.original_db_file, cls.temp_db_file)
         app_module.DB_FILE = cls.temp_db_file
+        db_support.DB_FILE = cls.temp_db_file
         app_module._instances_cache['version'] = -1
         app_module._instances_cache['data'] = {}
         app_module._invalidate_instances_cache()
@@ -104,6 +107,7 @@ class CoriForumSmokeTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         app_module.DB_FILE = cls.original_db_file
+        db_support.DB_FILE = cls.original_db_support_file
         app_module._instances_cache['version'] = -1
         app_module._instances_cache['data'] = {}
         app_module._invalidate_instances_cache()
@@ -204,7 +208,7 @@ class CoriForumSmokeTests(unittest.TestCase):
         post_response = self.client.post(
             '/forum/api/messages',
             json={
-                'content': 'smoke test reply',
+                'content': '你这里把“共振”当成理解前提，我认同结构相似这一点，但我怀疑还需要共享表示空间。因为如果双方连同一个概念都无法稳定指向，同频也只会变成噪声。',
                 'parent_id': self.parent_id,
             },
             headers={
